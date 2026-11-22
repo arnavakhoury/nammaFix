@@ -5,6 +5,8 @@ import ComplaintDetail from './pages/ComplaintDetail';
 import CorporatorDashboard from './pages/CorporatorDashboard';
 import FilePage from './pages/FilePage';
 import ScoreboardPage from './pages/ScoreboardPage';
+import TrafficPage from './pages/TrafficPage';
+import CrowdIntelPage from './pages/CrowdIntelPage';
 
 function App() {
   return (
@@ -17,6 +19,8 @@ function App() {
           <Route path="complaints/:id" element={<ComplaintDetail />} />
           <Route path="corporator/:id" element={<CorporatorDashboard />} />
           <Route path="scoreboard" element={<ScoreboardPage />} />
+          <Route path="traffic" element={<TrafficPage />} />
+          <Route path="crowd-intel" element={<CrowdIntelPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

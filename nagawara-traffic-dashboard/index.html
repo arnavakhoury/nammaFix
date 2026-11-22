@@ -1,0 +1,1748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Nagawara Junction — Traffic Management Dashboard</title>
+  <script src="libs/react.development.js"></script>
+  <script src="libs/react-dom.development.js"></script>
+  <script src="libs/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; background: #0f172a; color: #e2e8f0; font-size: 14px; }
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #1e293b; } ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+    .app { display: flex; flex-direction: column; min-height: 100vh; }
+    .topbar { background: #0f172a; border-bottom: 1px solid #1e293b; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; }
+    .topbar-title { display: flex; align-items: center; gap: 10px; }
+    .topbar-title h1 { font-size: 16px; font-weight: 700; color: #f1f5f9; }
+    .topbar-title span { font-size: 12px; color: #64748b; }
+    .topbar-status { display: flex; align-items: center; gap: 16px; }
+    .live-badge { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #22c55e; font-weight: 600; }
+    .live-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    .time-display { font-size: 12px; color: #94a3b8; font-variant-numeric: tabular-nums; }
+
+    /* Main grid: 3 cols, 2 rows + bottom row */
+    .main { display: grid; grid-template-columns: 1fr 1fr 320px; grid-template-rows: auto auto; gap: 12px; padding: 12px; flex: 1; }
+    .bottom-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 12px 12px; }
+
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .card-title { font-size: 13px; font-weight: 600; color: #cbd5e1; display: flex; align-items: center; gap: 7px; }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+    .badge-green { background: #14532d; color: #22c55e; }
+    .badge-yellow { background: #713f12; color: #fbbf24; }
+    .badge-red { background: #7f1d1d; color: #f87171; }
+    .badge-blue { background: #1e3a5f; color: #60a5fa; }
+    .badge-purple { background: #3b1f6e; color: #a78bfa; }
+
+    /* Junction SVG */
+    .junction-wrap { display: flex; justify-content: center; align-items: center; padding: 8px 0; }
+    .arm-label { font-size: 11px; fill: #94a3b8; font-family: -apple-system, "Segoe UI", sans-serif; font-weight: 600; }
+    .road { fill: #334155; }
+    .road-line { stroke: #475569; stroke-width: 1; stroke-dasharray: 6,5; }
+    .junction-box { fill: #475569; }
+
+    /* Density cards */
+    .arms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .arm-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; }
+    .arm-card-name { font-size: 11px; color: #94a3b8; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .arm-card-count { font-size: 22px; font-weight: 700; }
+    .arm-card-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .density-bar { height: 5px; background: #1e293b; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+    .density-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+
+    /* Signal panel */
+    .signals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .signal-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; }
+    .signal-card-name { font-size: 11px; color: #94a3b8; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; }
+    .traffic-light { display: flex; flex-direction: column; align-items: center; gap: 5px; background: #1a1a2e; border-radius: 8px; padding: 8px; width: 36px; margin: 0 auto 8px; border: 1px solid #334155; }
+    .light { width: 16px; height: 16px; border-radius: 50%; border: 1px solid #0f172a; transition: all 0.4s; }
+    .light-red-on    { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+    .light-red-off   { background: #3f1f1f; }
+    .light-yellow-on { background: #fbbf24; box-shadow: 0 0 8px #fbbf24; }
+    .light-yellow-off{ background: #3f3010; }
+    .light-green-on  { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+    .light-green-off { background: #0f2f1f; }
+    .signal-phase-label { font-size: 11px; font-weight: 700; text-align: center; }
+    .signal-timer { font-size: 18px; font-weight: 700; text-align: center; color: #f1f5f9; font-variant-numeric: tabular-nums; }
+    .signal-timer-label { font-size: 10px; color: #64748b; text-align: center; }
+    .mode-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .toggle-switch { width: 36px; height: 20px; background: #334155; border-radius: 10px; position: relative; cursor: pointer; transition: background 0.3s; }
+    .toggle-switch.on { background: #2563eb; }
+    .toggle-knob { width: 14px; height: 14px; background: white; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: left 0.3s; }
+    .toggle-switch.on .toggle-knob { left: 19px; }
+
+    /* Notifications side panel */
+    .notif-panel { grid-column: 3; grid-row: 1 / 3; display: flex; flex-direction: column; gap: 10px; }
+    .notif-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; max-height: 440px; }
+    .notif-item { background: #0f172a; border-radius: 8px; padding: 9px 11px; border-left: 3px solid; animation: slideIn 0.3s ease; }
+    @keyframes slideIn { from { opacity:0; transform: translateX(16px); } to { opacity:1; transform: translateX(0); } }
+    .notif-item.critical { border-color: #ef4444; }
+    .notif-item.warning  { border-color: #fbbf24; }
+    .notif-item.info     { border-color: #3b82f6; }
+    .notif-item.clear    { border-color: #22c55e; }
+    .notif-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 3px; }
+    .notif-type  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .notif-time  { font-size: 10px; color: #64748b; }
+    .notif-msg   { font-size: 12px; color: #cbd5e1; line-height: 1.4; }
+    .notif-meta  { font-size: 10px; color: #64748b; margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .notif-item.critical .notif-type { color: #f87171; }
+    .notif-item.warning  .notif-type { color: #fbbf24; }
+    .notif-item.info     .notif-type { color: #60a5fa; }
+    .notif-item.clear    .notif-type { color: #22c55e; }
+
+    /* Traveller broadcast log */
+    .broadcast-scroll { overflow-y: auto; display: flex; flex-direction: column; gap: 6px; max-height: 320px; }
+    .broadcast-item { background: #0f172a; border-radius: 7px; padding: 8px 11px; border: 1px solid #334155; display: flex; gap: 10px; align-items: flex-start; animation: slideIn 0.3s ease; }
+    .broadcast-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; color: #fff; }
+    .broadcast-body { flex: 1; min-width: 0; }
+    .broadcast-name { font-size: 12px; font-weight: 600; color: #f1f5f9; }
+    .broadcast-dist { font-size: 10px; color: #64748b; }
+    .broadcast-msg  { font-size: 11px; color: #94a3b8; margin-top: 2px; line-height: 1.4; }
+    .broadcast-time { font-size: 10px; color: #475569; margin-top: 2px; }
+    .broadcast-alt  { margin-top: 5px; background: #0d2015; border: 1px solid #22c55e33; border-radius: 5px; padding: 5px 8px; }
+    .broadcast-alt-title { font-size: 10px; font-weight: 700; color: #22c55e; margin-bottom: 2px; }
+    .broadcast-alt-name  { font-size: 11px; font-weight: 600; color: #f1f5f9; }
+    .broadcast-alt-via   { font-size: 10px; color: #64748b; margin-top: 1px; }
+    .broadcast-alt-avoid { font-size: 10px; color: #fbbf24; margin-top: 2px; }
+    .broadcast-exit { margin-top: 5px; background: #0f172a; border: 1px solid #3b82f633; border-radius: 5px; padding: 5px 8px; display: flex; align-items: center; gap: 8px; }
+    .broadcast-exit-val  { font-size: 16px; font-weight: 700; color: #60a5fa; }
+    .broadcast-exit-label{ font-size: 10px; color: #64748b; }
+    .toast-alt  { margin-top: 6px; background: #0d2015; border: 1px solid #22c55e44; border-radius: 5px; padding: 5px 8px; }
+    .toast-alt-title { font-size: 10px; font-weight: 700; color: #22c55e; }
+    .toast-alt-name  { font-size: 11px; font-weight: 600; color: #f1f5f9; }
+    .toast-alt-via   { font-size: 10px; color: #94a3b8; }
+    .toast-exit { margin-top: 5px; font-size: 11px; color: #60a5fa; font-weight: 600; }
+
+    /* Radius map */
+    .radius-map-wrap { display: flex; justify-content: center; }
+
+    /* Toast */
+    .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; pointer-events: none; }
+    .toast { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 16px; min-width: 290px; max-width: 360px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); pointer-events: all; animation: toastIn 0.4s cubic-bezier(0.16,1,0.3,1); display: flex; gap: 10px; align-items: flex-start; }
+    @keyframes toastIn { from { opacity:0; transform: translateY(20px) scale(0.95); } to { opacity:1; transform: translateY(0) scale(1); } }
+    .toast-icon  { font-size: 20px; flex-shrink: 0; }
+    .toast-body  { flex: 1; }
+    .toast-title { font-size: 13px; font-weight: 700; color: #f1f5f9; margin-bottom: 3px; }
+    .toast-desc  { font-size: 12px; color: #94a3b8; line-height: 1.4; }
+    .toast-reach { font-size: 11px; color: #a78bfa; margin-top: 4px; font-weight: 600; }
+    .toast-close { background: none; border: none; color: #64748b; cursor: pointer; font-size: 16px; line-height: 1; padding: 0; }
+
+    /* Charts */
+    .chart-bars { display: flex; align-items: flex-end; gap: 6px; height: 70px; padding-top: 4px; }
+    .chart-bar-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; }
+    .chart-bar { width: 100%; border-radius: 3px 3px 0 0; transition: height 0.6s ease; min-height: 2px; }
+    .chart-bar-label { font-size: 9px; color: #64748b; }
+    .chart-bar-val   { font-size: 9px; color: #94a3b8; }
+
+    /* Stats row */
+    .stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 0 12px; }
+    .stat-card  { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px; }
+    .stat-val   { font-size: 22px; font-weight: 700; color: #f1f5f9; }
+    .stat-label { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+    .full-span { grid-column: 1 / 3; }
+
+    /* GPS Sensor Panel */
+    .gps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .gps-sensor-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; }
+    .gps-sensor-name { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+    .gps-lock { display: flex; align-items: center; gap: 4px; font-size: 10px; }
+    .gps-lock-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .gps-coords { font-size: 10px; color: #64748b; font-variant-numeric: tabular-nums; margin-bottom: 4px; }
+    .gps-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .gps-metric { background: #1e293b; border-radius: 5px; padding: 4px 8px; }
+    .gps-metric-val { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+    .gps-metric-unit { font-size: 9px; color: #64748b; }
+    .gps-heading-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #1e3a5f; color: #60a5fa; font-weight: 600; }
+
+    /* Segment Speed Map */
+    .seg-arm { margin-bottom: 10px; }
+    .seg-arm-name { font-size: 11px; color: #94a3b8; font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; justify-content: space-between; }
+    .seg-row { display: flex; gap: 4px; }
+    .seg-block { flex: 1; border-radius: 5px; padding: 6px 5px; text-align: center; border: 1px solid #334155; }
+    .seg-label { font-size: 9px; color: #64748b; }
+    .seg-speed { font-size: 13px; font-weight: 700; }
+    .seg-flow  { font-size: 9px; margin-top: 1px; }
+
+    /* Route Advisor */
+    .route-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    .route-tab { flex: 1; padding: 6px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; cursor: pointer; text-align: center; font-size: 12px; font-weight: 600; color: #64748b; transition: all 0.2s; }
+    .route-tab.active-2w { border-color: #f59e0b; background: #2d1f00; color: #fbbf24; }
+    .route-tab.active-4w { border-color: #3b82f6; background: #0f1f3d; color: #60a5fa; }
+    .route-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+    .route-card.fastest { border-color: #22c55e; }
+    .route-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .route-rank { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+    .route-rank-1 { background: #14532d; color: #22c55e; }
+    .route-rank-2 { background: #1e3a5f; color: #60a5fa; }
+    .route-rank-3 { background: #3b1f6e; color: #a78bfa; }
+    .route-name { font-size: 13px; font-weight: 700; color: #f1f5f9; }
+    .route-via  { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .route-stats { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+    .route-stat { font-size: 11px; color: #94a3b8; }
+    .route-stat strong { color: #f1f5f9; }
+    .route-note-2w { font-size: 10px; color: #fbbf24; margin-top: 4px; }
+    .route-note-4w { font-size: 10px; color: #60a5fa; margin-top: 4px; }
+
+    /* ── NammaFix Citizen Reports Integration ───────────────────────────── */
+    .nf-section { padding: 0 12px 12px; }
+    .nf-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .nf-section-title { font-size: 15px; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 8px; }
+    .nf-section-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .nf-grid { display: grid; grid-template-columns: 1fr 1fr 340px; gap: 12px; }
+
+    /* Complaint feed */
+    .nf-feed { display: flex; flex-direction: column; gap: 8px; }
+    .nf-feed-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .nf-tab { padding: 4px 12px; border-radius: 20px; border: 1px solid #334155; background: #0f172a; color: #64748b; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .nf-tab.active { background: #f97316; border-color: #f97316; color: #fff; }
+    .nf-complaint { background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 11px 13px; display: flex; gap: 10px; align-items: flex-start; border-left: 3px solid; cursor: pointer; transition: background 0.15s; }
+    .nf-complaint:hover { background: #1e293b; }
+    .nf-complaint.sev-critical { border-left-color: #ef4444; }
+    .nf-complaint.sev-high     { border-left-color: #f97316; }
+    .nf-complaint.sev-medium   { border-left-color: #fbbf24; }
+    .nf-complaint.sev-low      { border-left-color: #22c55e; }
+    .nf-c-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+    .nf-c-title { font-size: 12px; font-weight: 700; color: #f1f5f9; }
+    .nf-c-meta  { font-size: 10px; color: #64748b; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .nf-c-desc  { font-size: 11px; color: #94a3b8; margin-top: 3px; line-height: 1.4; }
+    .nf-c-tags  { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+    .nf-tag     { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; border: 1px solid; }
+    .nf-tag-red    { background: #7f1d1d33; color: #f87171; border-color: #7f1d1d; }
+    .nf-tag-orange { background: #7c2d1233; color: #fb923c; border-color: #7c2d12; }
+    .nf-tag-yellow { background: #71390033; color: #fbbf24; border-color: #713900; }
+    .nf-tag-green  { background: #14532d33; color: #4ade80; border-color: #14532d; }
+    .nf-tag-blue   { background: #1e3a5f33; color: #60a5fa; border-color: #1e3a5f; }
+    .nf-upvote { display: flex; align-items: center; gap: 3px; font-size: 10px; color: #64748b; cursor: pointer; padding: 3px 7px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; transition: all 0.15s; margin-top: 6px; width: fit-content; }
+    .nf-upvote:hover { border-color: #f97316; color: #f97316; }
+    .nf-upvote.voted { border-color: #f97316; color: #f97316; background: #f9731610; }
+
+    /* File report panel */
+    .nf-file-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .nf-label  { font-size: 11px; font-weight: 600; color: #94a3b8; margin-bottom: 4px; }
+    .nf-input  { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 7px; padding: 8px 10px; color: #f1f5f9; font-size: 12px; outline: none; transition: border-color 0.2s; }
+    .nf-input:focus { border-color: #f97316; }
+    .nf-textarea { resize: vertical; min-height: 64px; }
+    .nf-select { appearance: none; cursor: pointer; }
+    .nf-type-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .nf-type-btn { background: #0f172a; border: 1px solid #334155; border-radius: 7px; padding: 7px 4px; text-align: center; font-size: 10px; font-weight: 600; color: #64748b; cursor: pointer; transition: all 0.15s; }
+    .nf-type-btn.selected { border-color: #f97316; background: #f9731615; color: #fb923c; }
+    .nf-submit-btn { width: 100%; padding: 10px; border-radius: 8px; background: #f97316; color: #fff; font-size: 13px; font-weight: 700; border: none; cursor: pointer; transition: background 0.2s; }
+    .nf-submit-btn:hover { background: #ea6e10; }
+    .nf-submit-btn:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+    .nf-success { background: #0d2015; border: 1px solid #22c55e55; border-radius: 8px; padding: 12px; text-align: center; }
+
+    /* Ward scoreboard */
+    .nf-ward-list { display: flex; flex-direction: column; gap: 7px; overflow-y: auto; max-height: 480px; }
+    .nf-ward-card { background: #0f172a; border: 1px solid #334155; border-radius: 9px; padding: 10px 12px; }
+    .nf-ward-top  { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .nf-ward-name { font-size: 12px; font-weight: 700; color: #f1f5f9; }
+    .nf-ward-corp { font-size: 10px; color: #64748b; margin-top: 1px; }
+    .nf-ward-bar  { height: 5px; background: #1e293b; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+    .nf-ward-fill { height: 100%; border-radius: 3px; }
+    .nf-ward-stats { display: flex; gap: 10px; margin-top: 5px; }
+    .nf-ward-stat  { font-size: 10px; color: #64748b; }
+    .nf-ward-stat strong { color: #94a3b8; }
+    .nf-shame { background: #3f0a0a; border: 1px solid #ef4444; border-radius: 8px; padding: 9px 12px; margin-bottom: 10px; font-size: 11px; color: #f87171; }
+    .nf-shame strong { color: #fca5a5; }
+    .nf-traffic-link { display: flex; align-items: center; gap: 5px; font-size: 10px; color: #60a5fa; margin-top: 4px; cursor: pointer; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo } = React;
+
+// ─── Junction Configuration ────────────────────────────────────────────────
+const ARMS = [
+  { id: 'north', name: 'North — Hebbal / ORR',         short: 'Hebbal',     color: '#3b82f6', angle: 270 },
+  { id: 'south', name: 'South — RT Nagar',              short: 'RT Nagar',   color: '#a855f7', angle: 90  },
+  { id: 'east',  name: 'East — Kalyan Nagar',           short: 'Kalyan Ngr', color: '#f59e0b', angle: 0   },
+  { id: 'west',  name: 'West — Thanisandra / Manyata',  short: 'Manyata',    color: '#22c55e', angle: 180 },
+];
+
+// Nagawara Junction real coordinates (used only for labelling)
+const JUNCTION_LAT = 13.0475, JUNCTION_LNG = 77.6219;
+
+// ─── 5km Radius Traveller Seed Data ─────────────────────────────────────────
+// 20 simulated travellers: name, nearest arm they're heading toward, distance (km), bearing
+const TRAVELLER_SEEDS = [
+  { name: 'Arjun S.',      arm: 'north', dist: 1.2, bearing: 350, area: 'Hebbal'          },
+  { name: 'Priya R.',      arm: 'north', dist: 2.8, bearing: 340, area: 'Esteem Mall'     },
+  { name: 'Mohammed K.',   arm: 'north', dist: 4.5, bearing: 355, area: 'Nagavara Lake'   },
+  { name: 'Deepa N.',      arm: 'east',  dist: 0.9, bearing: 60,  area: 'Kalyan Nagar'    },
+  { name: 'Rahul T.',      arm: 'east',  dist: 2.1, bearing: 75,  area: 'HRBR Layout'     },
+  { name: 'Sneha M.',      arm: 'east',  dist: 3.7, bearing: 55,  area: 'Banaswadi'       },
+  { name: 'Kiran B.',      arm: 'east',  dist: 4.9, bearing: 80,  area: 'Horamavu'        },
+  { name: 'Lakshmi V.',    arm: 'west',  dist: 1.4, bearing: 190, area: 'Thanisandra'     },
+  { name: 'Suresh P.',     arm: 'west',  dist: 2.6, bearing: 200, area: 'Manyata Tech Pk' },
+  { name: 'Anjali C.',     arm: 'west',  dist: 3.3, bearing: 185, area: 'Kogilu'          },
+  { name: 'Vikram H.',     arm: 'west',  dist: 4.7, bearing: 210, area: 'Sahakara Nagar'  },
+  { name: 'Meera J.',      arm: 'south', dist: 1.0, bearing: 170, area: 'RT Nagar'        },
+  { name: 'Arun G.',       arm: 'south', dist: 2.4, bearing: 160, area: 'Dollars Colony'  },
+  { name: 'Fatima Z.',     arm: 'south', dist: 3.8, bearing: 175, area: 'Aramane Nagar'   },
+  { name: 'Naveen D.',     arm: 'south', dist: 4.3, bearing: 155, area: 'Kammanahalli'    },
+  { name: 'Pooja S.',      arm: 'north', dist: 3.1, bearing: 10,  area: 'Jakkur'          },
+  { name: 'Ravi K.',       arm: 'east',  dist: 1.6, bearing: 45,  area: 'New Thippasandra'},
+  { name: 'Divya L.',      arm: 'west',  dist: 0.7, bearing: 220, area: 'Nagawara Cross'  },
+  { name: 'Santhosh M.',   arm: 'south', dist: 2.0, bearing: 145, area: 'RMV 2nd Stage'   },
+  { name: 'Bharathi R.',   arm: 'north', dist: 1.8, bearing: 5,   area: 'Lottegollahalli' },
+];
+
+const AVATAR_COLORS = ['#3b82f6','#a855f7','#f59e0b','#22c55e','#ef4444','#06b6d4','#f97316','#8b5cf6','#10b981','#ec4899'];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+function densityColor(pct) {
+  if (pct < 40) return '#22c55e';
+  if (pct < 70) return '#fbbf24';
+  return '#ef4444';
+}
+
+function densityLabel(pct) {
+  if (pct < 40) return { text: 'Low',    cls: 'badge-green'  };
+  if (pct < 70) return { text: 'Medium', cls: 'badge-yellow' };
+  return             { text: 'High',   cls: 'badge-red'    };
+}
+
+function formatTime(d) {
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+// Convert bearing + distance → SVG coords on a radius map (cx,cy = centre, R = max radius px)
+function polarToSVG(bearing, distKm, cx, cy, maxKm, R) {
+  const rad = ((bearing - 90) * Math.PI) / 180; // bearing from north → math angle
+  const r = (distKm / maxKm) * R;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+// ─── Sensor Simulator ────────────────────────────────────────────────────────
+function generateSensorData(prev) {
+  return ARMS.map((arm, i) => {
+    const prevCount = prev ? prev[i].count : rand(30, 90);
+    const delta = rand(-12, 14);
+    const count = Math.max(5, Math.min(120, prevCount + delta));
+    const pct = Math.round((count / 120) * 100);
+    return { ...arm, count, pct };
+  });
+}
+
+// ─── Adaptive Signal Engine ───────────────────────────────────────────────────
+function computeSignals(densities, adaptiveMode) {
+  if (!adaptiveMode) {
+    return ARMS.map((arm) => ({ armId: arm.id, greenTime: 30 }));
+  }
+  const total = densities.reduce((s, d) => s + d.count, 0) || 1;
+  return densities.map(d => ({
+    armId: d.id,
+    greenTime: Math.max(10, Math.round((d.count / total) * 90)),
+  }));
+}
+
+// ─── Alternate Route Data per arm ─────────────────────────────────────────────
+const ALT_ROUTES = {
+  north: {
+    '2w': { name: 'ORR Service Lane',      via: 'Nagavara Main → ORR Service Lane → Junction',   avoid: 'Avoid signal at Hebbal flyover junction' },
+    '4w': { name: 'Elevated ORR Bypass',   via: 'ORR elevated → Esteem Mall exit → Nagawara',    avoid: 'Toll applicable; avoids surface-level congestion' },
+    any:  { name: 'ORR Flyover Route',     via: 'Take ORR flyover approach, avoid Hebbal U-turn', avoid: 'Avoid left service road during peak hours' },
+  },
+  south: {
+    '2w': { name: 'RT Nagar 1st Main 2W',  via: 'RT Nagar Circle → 1st Main → Nagawara',         avoid: 'Avoid MG Road flyover during 8–10 AM' },
+    '4w': { name: 'Kammanahalli Bypass',   via: 'Kammanahalli Rd → 80ft Rd → Nagawara',          avoid: 'Avoid RT Nagar Main near school zone' },
+    any:  { name: 'Aramane Nagar Cut',     via: 'Aramane Nagar → Cross → Nagawara Junction',     avoid: 'Avoid RT Nagar Main Road if density > 70%' },
+  },
+  east: {
+    '2w': { name: 'HRBR Internal Bypass',  via: 'HRBR Layout → Internal Roads → Junction',       avoid: 'Avoid Kalyan Nagar 4th Block during rush hour' },
+    '4w': { name: 'New Thippasandra Rd',   via: 'New Thippasandra → Old Airport Rd → Nagawara',  avoid: 'Avoid Horamavu Bridge Rd during 9–11 AM' },
+    any:  { name: 'Banaswadi Cut-through', via: 'Banaswadi Rd → New Thippasandra → Junction',    avoid: 'Avoid Kalyan Nagar signal block near HRBR' },
+  },
+  west: {
+    '2w': { name: 'Manyata 2W Inner Ring', via: 'Manyata Rd → Service Lane → Nagawara Cross',    avoid: 'Avoid Thanisandra Main near tech park gates 8–10 AM' },
+    '4w': { name: 'ORR Manyata Exit',      via: 'Manyata Tech Park → ORR Exit → Nagawara Jn',   avoid: 'Avoid Kogilu Rd on Mon–Fri 6–8 PM' },
+    any:  { name: 'Sahakara Nagar Cross',  via: 'Sahakara Nagar → Kogilu Cross → Junction',      avoid: 'Avoid Thanisandra Main Road during peak hours' },
+  },
+};
+
+// Exit-time: minutes to travel 1 km from junction exit point, given near-junction speed
+function computeExitTime(armId, segmentData) {
+  const seg0 = segmentData && segmentData[armId] && segmentData[armId][0];
+  const speedKmh = seg0 ? seg0.speed : 15;
+  // 1 km at speedKmh → time in minutes
+  return Math.max(1, Math.round((1 / speedKmh) * 60));
+}
+
+// ─── Traveller Notification Builder ───────────────────────────────────────────
+function buildTravellerMessage(arm, density, dist, segmentData) {
+  const wait = Math.round(density.pct * 0.15 + dist * 0.5);
+  const altRoute = ALT_ROUTES[arm.id]?.any ?? { name: 'Service Road', via: 'Use parallel service road', avoid: '' };
+  const exitTimeMins = computeExitTime(arm.id, segmentData);
+
+  if (density.pct >= 75) {
+    return {
+      type: 'critical',
+      icon: '🚨',
+      msg: `Heavy congestion at Nagawara Junction (${arm.short} side). Estimated delay: ${wait} min.`,
+      altRoute,
+      exitTimeMins,
+    };
+  }
+  if (density.pct >= 50) {
+    return {
+      type: 'warning',
+      icon: '⚠️',
+      msg: `Moderate traffic near Nagawara Junction (${arm.short}). ~${wait} min wait. Signal timings adjusted.`,
+      altRoute,
+      exitTimeMins,
+    };
+  }
+  return {
+    type: 'info',
+    icon: 'ℹ️',
+    msg: `Traffic flowing normally at Nagawara Junction (${arm.short}). Estimated travel time: ${wait} min.`,
+    altRoute,
+    exitTimeMins,
+  };
+}
+
+// ─── Components ──────────────────────────────────────────────────────────────
+
+function TopBar({ time, adaptiveMode, onToggleAdaptive }) {
+  return (
+    <div className="topbar">
+      <div className="topbar-title">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="6" fill="#2563eb"/>
+          <rect x="12" y="2" width="4" height="24" rx="2" fill="#93c5fd"/>
+          <rect x="2" y="12" width="24" height="4" rx="2" fill="#93c5fd"/>
+          <circle cx="14" cy="14" r="4" fill="#1d4ed8"/>
+        </svg>
+        <div>
+          <h1>Nagawara Junction — Traffic Management</h1>
+          <span>Bangalore · Real-time Dashboard · 5 km Traveller Alert Zone</span>
+        </div>
+      </div>
+      <div className="topbar-status">
+        <div className="mode-toggle">
+          <span style={{fontSize:'12px', color:'#94a3b8'}}>Adaptive Mode</span>
+          <div className={`toggle-switch ${adaptiveMode ? 'on' : ''}`} onClick={onToggleAdaptive}>
+            <div className="toggle-knob"/>
+          </div>
+          <span style={{fontSize:'12px', color: adaptiveMode ? '#60a5fa' : '#64748b'}}>
+            {adaptiveMode ? 'ON' : 'OFF'}
+          </span>
+        </div>
+        <div className="live-badge"><div className="live-dot"/> LIVE</div>
+        <div className="time-display">{formatTime(time)}</div>
+      </div>
+    </div>
+  );
+}
+
+function StatCards({ densities, broadcastCount }) {
+  const totalVehicles = densities.reduce((s, d) => s + d.count, 0);
+  const avgDensity = Math.round(densities.reduce((s, d) => s + d.pct, 0) / 4);
+  const heavyCount = densities.filter(d => d.pct > 70).length;
+  const maxArm = densities.reduce((a, b) => a.count > b.count ? a : b, densities[0]);
+  return (
+    <div className="stats-row">
+      <div className="stat-card">
+        <div className="stat-val" style={{color:'#60a5fa'}}>{totalVehicles}</div>
+        <div className="stat-label">Vehicles at Junction</div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-val" style={{color: avgDensity > 70 ? '#f87171' : avgDensity > 40 ? '#fbbf24' : '#22c55e'}}>{avgDensity}%</div>
+        <div className="stat-label">Avg Junction Density</div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-val" style={{color: heavyCount > 1 ? '#f87171' : '#22c55e'}}>{heavyCount}</div>
+        <div className="stat-label">Arms in High Congestion</div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-val" style={{fontSize:'16px', color:'#a78bfa'}}>{maxArm?.short}</div>
+        <div className="stat-label">Most Congested Arm</div>
+      </div>
+      <div className="stat-card">
+        <div className="stat-val" style={{color:'#f59e0b'}}>{broadcastCount}</div>
+        <div className="stat-label">Traveller Alerts Sent</div>
+      </div>
+    </div>
+  );
+}
+
+function JunctionMap({ densities, signalStates }) {
+  const cx = 160, cy = 160, roadW = 36, jBox = 50;
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#60a5fa" strokeWidth="1.5"/><path d="M7 3v4l3 2" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          Junction Live Map
+        </div>
+        <span className="badge badge-blue">Nagawara, Bangalore</span>
+      </div>
+      <div className="junction-wrap">
+        <svg width="320" height="320" viewBox="0 0 320 320">
+          {/* Roads */}
+          <rect x={cx - roadW/2} y={0} width={roadW} height={cy - jBox/2} className="road"/>
+          <line x1={cx} y1={0} x2={cx} y2={cy - jBox/2} className="road-line"/>
+          <rect x={cx - roadW/2} y={cy + jBox/2} width={roadW} height={320 - cy - jBox/2} className="road"/>
+          <line x1={cx} y1={cy+jBox/2} x2={cx} y2={320} className="road-line"/>
+          <rect x={0} y={cy - roadW/2} width={cx - jBox/2} height={roadW} className="road"/>
+          <line x1={0} y1={cy} x2={cx - jBox/2} y2={cy} className="road-line"/>
+          <rect x={cx + jBox/2} y={cy - roadW/2} width={320 - cx - jBox/2} height={roadW} className="road"/>
+          <line x1={cx + jBox/2} y1={cy} x2={320} y2={cy} className="road-line"/>
+          {/* Junction box */}
+          <rect x={cx - jBox/2} y={cy - jBox/2} width={jBox} height={jBox} className="junction-box" rx="4"/>
+          <text x={cx} y={cy + 4} textAnchor="middle" fontSize="9" fill="#94a3b8" fontWeight="600">JUNCTION</text>
+
+          {/* Density overlays */}
+          {densities.map((arm) => {
+            const fillH = Math.round((arm.pct / 100) * 36);
+            const col = densityColor(arm.pct);
+            return (
+              <g key={arm.id}>
+                {arm.id === 'north' && <rect x={cx-roadW/2+2} y={cy-jBox/2-fillH-4} width={roadW-4} height={fillH} fill={col} opacity="0.35" rx="2"/>}
+                {arm.id === 'south' && <rect x={cx-roadW/2+2} y={cy+jBox/2+4} width={roadW-4} height={fillH} fill={col} opacity="0.35" rx="2"/>}
+                {arm.id === 'west'  && <rect x={cx-jBox/2-fillH-4} y={cy-roadW/2+2} width={fillH} height={roadW-4} fill={col} opacity="0.35" rx="2"/>}
+                {arm.id === 'east'  && <rect x={cx+jBox/2+4} y={cy-roadW/2+2} width={fillH} height={roadW-4} fill={col} opacity="0.35" rx="2"/>}
+              </g>
+            );
+          })}
+
+          {/* Signal lights */}
+          {signalStates && signalStates.map((sig) => {
+            const sigPos = {
+              north: { x: cx - roadW/2 - 18, y: cy - jBox/2 - 30 },
+              south: { x: cx - roadW/2 - 18, y: cy + jBox/2 + 10 },
+              east:  { x: cx + jBox/2 + 10,  y: cy - roadW/2 - 18 },
+              west:  { x: cx - jBox/2 - 30,  y: cy - roadW/2 - 18 },
+            }[sig.armId];
+            if (!sigPos) return null;
+            return (
+              <g key={sig.armId}>
+                <rect x={sigPos.x} y={sigPos.y} width={12} height={28} rx="3" fill="#1a1a2e" stroke="#334155" strokeWidth="1"/>
+                <circle cx={sigPos.x+6} cy={sigPos.y+6}  r="4" fill={sig.phase==='RED'    ? '#ef4444' : '#3f1f1f'}/>
+                <circle cx={sigPos.x+6} cy={sigPos.y+14} r="4" fill={sig.phase==='YELLOW' ? '#fbbf24' : '#3f3010'}/>
+                <circle cx={sigPos.x+6} cy={sigPos.y+22} r="4" fill={sig.phase==='GREEN'  ? '#22c55e' : '#0f2f1f'}/>
+              </g>
+            );
+          })}
+
+          {/* Arm labels */}
+          <text x={cx} y={14}   textAnchor="middle" className="arm-label">↑ Hebbal / ORR</text>
+          <text x={cx} y={312}  textAnchor="middle" className="arm-label">↓ RT Nagar</text>
+          <text x={304} y={cy+4} textAnchor="end"   className="arm-label">Kalyan Nagar →</text>
+          <text x={16}  y={cy+4} textAnchor="start" className="arm-label">← Manyata</text>
+
+          {/* Count bubbles */}
+          {densities.map((arm) => {
+            const bubblePos = {
+              north: { x: cx-16, y: cy-jBox/2-50 },
+              south: { x: cx-16, y: cy+jBox/2+55 },
+              east:  { x: cx+jBox/2+65, y: cy-20 },
+              west:  { x: cx-jBox/2-80, y: cy-20 },
+            }[arm.id];
+            const col = densityColor(arm.pct);
+            return (
+              <g key={arm.id}>
+                <rect x={bubblePos.x} y={bubblePos.y} width={32} height={18} rx="4" fill={col} opacity="0.85"/>
+                <text x={bubblePos.x+16} y={bubblePos.y+12} textAnchor="middle" fontSize="10" fill="#fff" fontWeight="700">{arm.count}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function DensityPanel({ densities }) {
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="8" width="2" height="5" rx="1" fill="#60a5fa"/><rect x="4" y="5" width="2" height="8" rx="1" fill="#a78bfa"/><rect x="7" y="3" width="2" height="10" rx="1" fill="#f59e0b"/><rect x="10" y="6" width="2" height="7" rx="1" fill="#f87171"/></svg>
+          Vehicle Density per Arm
+        </div>
+      </div>
+      <div className="arms-grid">
+        {densities.map((arm) => {
+          const lbl = densityLabel(arm.pct);
+          return (
+            <div className="arm-card" key={arm.id}>
+              <div className="arm-card-name">{arm.short}</div>
+              <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                <div className="arm-card-count" style={{color: arm.color}}>{arm.count}</div>
+                <span className={`badge ${lbl.cls}`}>{lbl.text}</span>
+              </div>
+              <div className="arm-card-sub">vehicles · {arm.pct}% capacity</div>
+              <div className="density-bar">
+                <div className="density-fill" style={{width: arm.pct + '%', background: densityColor(arm.pct)}}/>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{marginTop:'12px'}}>
+        <div style={{fontSize:'11px', color:'#64748b', marginBottom:'6px'}}>Vehicle Count (current)</div>
+        <div className="chart-bars">
+          {densities.map((arm) => (
+            <div className="chart-bar-wrap" key={arm.id}>
+              <div className="chart-bar-val">{arm.count}</div>
+              <div className="chart-bar" style={{
+                height: Math.round((arm.count / 120) * 60) + 'px',
+                background: `linear-gradient(to top, ${arm.color}cc, ${arm.color}44)`,
+              }}/>
+              <div className="chart-bar-label">{arm.short.split(' ')[0]}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SignalPanel({ signalStates, adaptiveMode }) {
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="4" y="1" width="6" height="12" rx="2" fill="#334155" stroke="#475569" strokeWidth="0.5"/><circle cx="7" cy="4" r="1.5" fill="#ef4444"/><circle cx="7" cy="7" r="1.5" fill="#fbbf24"/><circle cx="7" cy="10" r="1.5" fill="#22c55e"/></svg>
+          Signal Control Panel
+        </div>
+        <span className={`badge ${adaptiveMode ? 'badge-blue' : 'badge-yellow'}`}>
+          {adaptiveMode ? '🤖 Adaptive' : '🔧 Manual'}
+        </span>
+      </div>
+      <div className="signals-grid">
+        {signalStates && signalStates.map((sig) => {
+          const arm = ARMS.find(a => a.id === sig.armId);
+          return (
+            <div className="signal-card" key={sig.armId}>
+              <div className="signal-card-name">{arm?.short}</div>
+              <div className="traffic-light">
+                <div className={`light ${sig.phase==='RED'    ? 'light-red-on'    : 'light-red-off'}`}/>
+                <div className={`light ${sig.phase==='YELLOW' ? 'light-yellow-on' : 'light-yellow-off'}`}/>
+                <div className={`light ${sig.phase==='GREEN'  ? 'light-green-on'  : 'light-green-off'}`}/>
+              </div>
+              <div className="signal-timer">{sig.timer}s</div>
+              <div className="signal-timer-label">remaining</div>
+              <div className="signal-phase-label" style={{color: sig.phase==='GREEN' ? '#22c55e' : sig.phase==='YELLOW' ? '#fbbf24' : '#ef4444', marginTop:'4px'}}>
+                {sig.phase}
+              </div>
+              <div style={{fontSize:'10px', color:'#64748b', marginTop:'4px'}}>Green: {sig.greenTime}s</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── 5KM RADIUS MAP ──────────────────────────────────────────────────────────
+function RadiusMap({ travellers, densities, broadcastLog }) {
+  const SVG = 280, cx = 140, cy = 140, maxKm = 5, R = 110;
+  // Build a set of recently notified traveller IDs for highlight
+  const recentIds = useMemo(() => {
+    const cutoff = Date.now() - 10000;
+    return new Set(broadcastLog.filter(b => b.ts > cutoff).map(b => b.travellerId));
+  }, [broadcastLog]);
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#a78bfa" strokeWidth="1.5" strokeDasharray="3,2"/><circle cx="7" cy="7" r="2" fill="#a78bfa"/></svg>
+          5 km Traveller Alert Zone
+        </div>
+        <span className="badge badge-purple">{travellers.length} travellers</span>
+      </div>
+      <div className="radius-map-wrap">
+        <svg width={SVG} height={SVG} viewBox={`0 0 ${SVG} ${SVG}`}>
+          {/* Background */}
+          <circle cx={cx} cy={cy} r={R+10} fill="#0f172a"/>
+          {/* Radius rings */}
+          {[1,2,3,4,5].map(km => (
+            <circle key={km} cx={cx} cy={cy} r={(km/maxKm)*R} fill="none" stroke="#1e293b" strokeWidth="1" strokeDasharray="3,3"/>
+          ))}
+          {/* Ring labels */}
+          {[1,2,3,4,5].map(km => (
+            <text key={km} x={cx + (km/maxKm)*R + 2} y={cy - 2} fontSize="8" fill="#334155">{km}km</text>
+          ))}
+          {/* Arm direction rays */}
+          {ARMS.map(arm => {
+            const rad = ((arm.angle - 90) * Math.PI) / 180;
+            return (
+              <line key={arm.id}
+                x1={cx} y1={cy}
+                x2={cx + (R+10)*Math.cos(rad)} y2={cy + (R+10)*Math.sin(rad)}
+                stroke={arm.color} strokeWidth="1" strokeDasharray="4,3" opacity="0.4"
+              />
+            );
+          })}
+          {/* Arm labels */}
+          {ARMS.map(arm => {
+            const rad = ((arm.angle - 90) * Math.PI) / 180;
+            const lx = cx + (R+8)*Math.cos(rad);
+            const ly = cy + (R+8)*Math.sin(rad);
+            const anchor = arm.angle === 0 ? 'start' : arm.angle === 180 ? 'end' : 'middle';
+            return (
+              <text key={arm.id} x={lx} y={ly + (arm.angle===90?8: arm.angle===270?-2:4)}
+                textAnchor={anchor} fontSize="8" fill={arm.color} fontWeight="600">{arm.short}</text>
+            );
+          })}
+          {/* Travellers */}
+          {travellers.map((t, i) => {
+            const pos = polarToSVG(t.bearing, t.dist, cx, cy, maxKm, R);
+            const isNotified = recentIds.has(t.id);
+            const col = AVATAR_COLORS[i % AVATAR_COLORS.length];
+            return (
+              <g key={t.id}>
+                {isNotified && <circle cx={pos.x} cy={pos.y} r="10" fill={col} opacity="0.15">
+                  <animate attributeName="r" from="8" to="14" dur="1s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" from="0.2" to="0" dur="1s" repeatCount="indefinite"/>
+                </circle>}
+                <circle cx={pos.x} cy={pos.y} r="5" fill={col} opacity={isNotified ? 1 : 0.6}
+                  stroke={isNotified ? '#fff' : 'none'} strokeWidth="1"/>
+              </g>
+            );
+          })}
+          {/* Junction centre */}
+          <circle cx={cx} cy={cy} r="7" fill="#2563eb" stroke="#93c5fd" strokeWidth="1.5"/>
+          <text x={cx} y={cy+3} textAnchor="middle" fontSize="6" fill="#fff" fontWeight="700">J</text>
+          {/* Legend */}
+          <circle cx={16} cy={SVG-20} r="4" fill="#60a5fa" opacity="0.6"/>
+          <text x={24} y={SVG-16} fontSize="8" fill="#64748b">Traveller</text>
+          <circle cx={70} cy={SVG-20} r="4" fill="#60a5fa" stroke="#fff" strokeWidth="1"/>
+          <text x={78} y={SVG-16} fontSize="8" fill="#64748b">Notified</text>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+// ─── NOTIFICATIONS SIDE PANEL ─────────────────────────────────────────────────
+function NotificationsPanel({ notifications }) {
+  return (
+    <div className="card notif-panel">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1a4 4 0 0 0-4 4v3l-1 2h10l-1-2V5a4 4 0 0 0-4-4z" stroke="#f59e0b" strokeWidth="1.5"/><path d="M5.5 11a1.5 1.5 0 0 0 3 0" stroke="#f59e0b" strokeWidth="1.5"/></svg>
+          Junction Alert Feed
+        </div>
+        <span className="badge badge-yellow">{notifications.length}</span>
+      </div>
+      <div style={{fontSize:'11px', color:'#64748b', marginBottom:'8px'}}>
+        Dispatched to all travellers within 5 km radius
+      </div>
+      <div className="notif-scroll">
+        {notifications.length === 0 && (
+          <div style={{color:'#475569', fontSize:'12px', textAlign:'center', marginTop:'20px'}}>Monitoring junction...</div>
+        )}
+        {[...notifications].reverse().map((n) => (
+          <div className={`notif-item ${n.type}`} key={n.id}>
+            <div className="notif-header">
+              <span className="notif-type">{n.icon} {n.type}</span>
+              <span className="notif-time">{formatTime(n.time)}</span>
+            </div>
+            <div className="notif-msg">{n.msg}</div>
+            <div className="notif-meta">
+              <span>📍 {n.arm} Arm</span>
+              <span>👥 {n.reachCount} travellers notified</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── TRAVELLER BROADCAST LOG ──────────────────────────────────────────────────
+function BroadcastLog({ broadcastLog, travellers }) {
+  const tMap = useMemo(() => Object.fromEntries(travellers.map(t => [t.id, t])), [travellers]);
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v6" stroke="#a78bfa" strokeWidth="1.5"/><path d="M5 13h4" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/><path d="M7 10v3" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          Per-Traveller Broadcast Log
+        </div>
+        <span className="badge badge-purple">{broadcastLog.length} sent</span>
+      </div>
+      <div style={{fontSize:'11px', color:'#64748b', marginBottom:'8px'}}>
+        Individual alerts delivered to travellers within 5 km of Nagawara Junction
+      </div>
+      <div className="broadcast-scroll">
+        {broadcastLog.length === 0 && (
+          <div style={{color:'#475569', fontSize:'12px', textAlign:'center', marginTop:'16px'}}>No alerts dispatched yet...</div>
+        )}
+        {[...broadcastLog].reverse().map((b, i) => {
+          const t = tMap[b.travellerId];
+          if (!t) return null;
+          const col = AVATAR_COLORS[travellers.findIndex(tv => tv.id === t.id) % AVATAR_COLORS.length];
+          const borderCol = b.type === 'critical' ? '#ef4444' : b.type === 'warning' ? '#fbbf24' : b.type === 'clear' ? '#22c55e' : '#3b82f6';
+          return (
+            <div className="broadcast-item" key={b.id} style={{borderLeft:`2px solid ${borderCol}`}}>
+              <div className="broadcast-avatar" style={{background: col}}>
+                {t.name.charAt(0)}
+              </div>
+              <div className="broadcast-body">
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+                  <span className="broadcast-name">{t.name}</span>
+                  <span className="broadcast-time">{formatTime(new Date(b.ts))}</span>
+                </div>
+                <div className="broadcast-dist">📍 {t.area} · {t.dist.toFixed(1)} km from junction · heading → {t.short}</div>
+                <div className="broadcast-msg">{b.icon} {b.msg}</div>
+                {b.altRoute && (
+                  <div className="broadcast-alt">
+                    <div className="broadcast-alt-title">🛣️ Alternate Route Suggested</div>
+                    <div className="broadcast-alt-name">{b.altRoute.name}</div>
+                    <div className="broadcast-alt-via">via {b.altRoute.via}</div>
+                    {b.altRoute.avoid && <div className="broadcast-alt-avoid">⚠️ {b.altRoute.avoid}</div>}
+                  </div>
+                )}
+                {b.exitTimeMins !== undefined && (
+                  <div className="broadcast-exit">
+                    <div>
+                      <div className="broadcast-exit-val">{b.exitTimeMins} min</div>
+                      <div className="broadcast-exit-label">exit time · 1 km from junction</div>
+                    </div>
+                    <div style={{fontSize:'10px', color:'#475569', borderLeft:'1px solid #1e293b', paddingLeft:'8px'}}>
+                      Based on current speed at {t.short} arm entrance
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function ToastContainer({ toasts, onClose }) {
+  return (
+    <div className="toast-container">
+      {toasts.map((t) => {
+        const borderCol = t.type === 'critical' ? '#ef4444' : t.type === 'warning' ? '#fbbf24' : t.type === 'clear' ? '#22c55e' : '#3b82f6';
+        return (
+          <div className="toast" key={t.id} style={{borderLeft:`3px solid ${borderCol}`}}>
+            <div className="toast-icon">{t.icon}</div>
+            <div className="toast-body">
+              <div className="toast-title">
+                {t.type === 'critical' ? '🚨 Traffic Alert — Nagawara Junction' :
+                 t.type === 'warning'  ? '⚠️ Congestion Warning' :
+                 t.type === 'clear'    ? '✅ Traffic Cleared' : 'ℹ️ Junction Update'}
+              </div>
+              <div className="toast-desc">{t.msg}</div>
+              <div className="toast-reach">📡 Notified {t.reachCount} travellers within 5 km</div>
+              {t.exitTimeMins !== undefined && (
+                <div className="toast-exit">🚦 Exit 1 km zone in ~{t.exitTimeMins} min at current speed</div>
+              )}
+              {t.altRoute && (
+                <div className="toast-alt">
+                  <div className="toast-alt-title">🛣️ Alternate Route</div>
+                  <div className="toast-alt-name">{t.altRoute.name}</div>
+                  <div className="toast-alt-via">via {t.altRoute.via}</div>
+                </div>
+              )}
+            </div>
+            <button className="toast-close" onClick={() => onClose(t.id)}>×</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── GPS SENSOR DATA ──────────────────────────────────────────────────────────
+// 4 sensors, one per arm entrance. Coords are approx 400m from junction centre.
+const GPS_SENSOR_BASE = [
+  { armId: 'north', name: 'GPS-N01 · Hebbal Flyover',    lat: 13.0519, lng: 77.6212, headingLabel: 'S → Junction' },
+  { armId: 'south', name: 'GPS-S02 · RT Nagar Circle',   lat: 13.0432, lng: 77.6225, headingLabel: 'N → Junction' },
+  { armId: 'east',  name: 'GPS-E03 · Kalyan Nagar Rd',   lat: 13.0471, lng: 77.6281, headingLabel: 'W → Junction' },
+  { armId: 'west',  name: 'GPS-W04 · Thanisandra Main',  lat: 13.0479, lng: 77.6157, headingLabel: 'E → Junction' },
+];
+
+function generateGpsReadings(prev) {
+  return GPS_SENSOR_BASE.map((s, i) => {
+    const prevSpeed = prev ? prev[i].speed : rand(8, 35);
+    const speed = Math.max(2, Math.min(50, prevSpeed + rand(-6, 6)));
+    // Drift coords slightly for realism
+    const latDrift = (Math.random() - 0.5) * 0.0001;
+    const lngDrift = (Math.random() - 0.5) * 0.0001;
+    const satellites = rand(6, 12);
+    const accuracy = +(Math.random() * 3 + 1).toFixed(1);
+    const locked = satellites >= 7;
+    return {
+      ...s,
+      speed,
+      lat: +(s.lat + latDrift).toFixed(6),
+      lng: +(s.lng + lngDrift).toFixed(6),
+      satellites,
+      accuracy,
+      locked,
+      updatedAt: Date.now(),
+    };
+  });
+}
+
+// ─── ROAD SEGMENT DATA ────────────────────────────────────────────────────────
+// Each arm split into 3 segments: 0–1.5km, 1.5–3km, 3–5km
+const SEGMENTS_DEF = {
+  north: [
+    { label: '0–1.5 km', desc: 'Near Junction',    roads2w: 'Service lane available' },
+    { label: '1.5–3 km', desc: 'Nagavara Main',     roads2w: '2W lane on left' },
+    { label: '3–5 km',   desc: 'Hebbal ORR',        roads2w: 'Dedicated 2W corridor' },
+  ],
+  south: [
+    { label: '0–1.5 km', desc: 'Near Junction',    roads2w: 'Shared lane' },
+    { label: '1.5–3 km', desc: 'RT Nagar Main',    roads2w: '2W lane marked' },
+    { label: '3–5 km',   desc: 'Dollars Colony',   roads2w: 'Mixed traffic' },
+  ],
+  east: [
+    { label: '0–1.5 km', desc: 'Near Junction',    roads2w: 'Service road east side' },
+    { label: '1.5–3 km', desc: 'HRBR Layout',      roads2w: '2W shortcut via HRBR' },
+    { label: '3–5 km',   desc: 'Banaswadi Rd',     roads2w: 'Two-wheeler bypass road' },
+  ],
+  west: [
+    { label: '0–1.5 km', desc: 'Near Junction',    roads2w: 'Narrow 2W lane' },
+    { label: '1.5–3 km', desc: 'Manyata Rd',       roads2w: '2W lane on left side' },
+    { label: '3–5 km',   desc: 'Sahakara Nagar',   roads2w: 'Open road, 2W preferred' },
+  ],
+};
+
+function generateSegmentData(densities, prev) {
+  const result = {};
+  ARMS.forEach((arm, ai) => {
+    const armDensity = densities[ai] ? densities[ai].pct : 50;
+    result[arm.id] = SEGMENTS_DEF[arm.id].map((seg, si) => {
+      // Near-junction segment is most affected by density; far is free-flow
+      const congestionFactor = si === 0 ? armDensity : si === 1 ? armDensity * 0.6 : armDensity * 0.3;
+      const baseSpeed = si === 0 ? 15 : si === 1 ? 25 : 38;
+      const prevSpeed = prev && prev[arm.id] ? prev[arm.id][si].speed : baseSpeed;
+      const speed = Math.max(4, Math.min(55, prevSpeed + rand(-4, 4) - congestionFactor * 0.1));
+      const flow = speed > 35 ? 'Free' : speed > 20 ? 'Moderate' : speed > 10 ? 'Slow' : 'Jammed';
+      return { ...seg, speed: Math.round(speed), flow, armId: arm.id };
+    });
+  });
+  return result;
+}
+
+// ─── ROUTE ADVISOR DATA ───────────────────────────────────────────────────────
+// Fixed route options per arm for 2W and 4W, with dynamic ETA based on segments
+const ROUTE_OPTIONS = {
+  north: {
+    '2w': [
+      { name: 'Service Lane + Flyover',       via: 'Nagavara Main → ORR Service Lane',       dist: 4.2, coeff: 0.9, note: '2W lane all the way, avoid signal queue' },
+      { name: 'Thanisandra Cross Shortcut',   via: 'Lottegollahalli → Cross Rd → Junction',  dist: 5.1, coeff: 1.1, note: 'Avoid at peak hours; narrow lanes' },
+      { name: 'Direct Hebbal Rd',             via: 'Hebbal Main Road straight',              dist: 3.9, coeff: 1.3, note: 'Fastest distance but high signal density' },
+    ],
+    '4w': [
+      { name: 'ORR Main Carriageway',         via: 'Outer Ring Road → Nagawara Flyover',     dist: 4.5, coeff: 1.0, note: 'Wide 3-lane road, good for cars' },
+      { name: 'Elevated Corridor Bypass',     via: 'ORR elevated → Esteem Mall exit',       dist: 5.2, coeff: 0.85, note: 'Toll applies, fastest overall for cars' },
+      { name: 'Nagavara Main Rd',             via: 'Via Nagavara Lake Road',                 dist: 4.1, coeff: 1.4, note: 'Narrow near school zone, avoid 8–9 AM' },
+    ],
+  },
+  south: {
+    '2w': [
+      { name: 'RT Nagar 1st Main 2W Lane',    via: 'RT Nagar Circle → 1st Main → Junction', dist: 3.2, coeff: 0.85, note: 'Dedicated 2W lane, low signal stops' },
+      { name: 'Aramane Nagar Shortcut',       via: 'Aramane Nagar → Cross → Junction',      dist: 3.8, coeff: 1.0,  note: 'Internal road, smooth for bikes' },
+      { name: 'MG Road Connector',            via: 'MG Road → RT Nagar Main',               dist: 4.6, coeff: 1.2,  note: 'Longer but avoids school zone' },
+    ],
+    '4w': [
+      { name: 'RT Nagar Main Road',           via: 'RT Nagar Main → Nagawara',              dist: 3.5, coeff: 1.1,  note: 'Standard 4W route, 2 signals' },
+      { name: 'Kammanahalli Cut-through',     via: 'Kammanahalli Rd → Nagawara',            dist: 4.0, coeff: 0.9,  note: 'Less congested, good road surface' },
+      { name: 'Dollars Colony Bypass',        via: 'Dollars Colony → 80 Feet Rd',          dist: 4.8, coeff: 0.8,  note: 'Wider road, recommended for heavy vehicles' },
+    ],
+  },
+  east: {
+    '2w': [
+      { name: 'HRBR 2W Bypass',              via: 'HRBR Layout → Internal → Junction',     dist: 2.8, coeff: 0.8,  note: 'Two-wheeler shortcut, saves 5–8 min' },
+      { name: 'Kalyan Nagar Main 2W',         via: 'Kalyan Nagar 4th Block → Junction',     dist: 3.1, coeff: 0.95, note: '2W lane painted, follow lane markings' },
+      { name: 'Banaswadi Rd',                 via: 'Banaswadi → New Thippasandra',          dist: 3.9, coeff: 1.1,  note: 'Longer but avoids HRBR congestion' },
+    ],
+    '4w': [
+      { name: 'Kalyan Nagar 80ft Road',       via: '80ft Rd → Kalyan Nagar Cross',          dist: 3.3, coeff: 1.0,  note: 'Wide road, good signal coordination' },
+      { name: 'New Thippasandra Rd',          via: 'New Thippasandra → Old Airport Rd',    dist: 3.7, coeff: 0.9,  note: 'Less congested during 9–11 AM' },
+      { name: 'Horamavu Bridge Rd',           via: 'Horamavu → Kalyan Nagar',               dist: 4.4, coeff: 1.15, note: 'Avoid during Horamavu peak hours' },
+    ],
+  },
+  west: {
+    '2w': [
+      { name: 'Manyata 2W Inner Ring',        via: 'Manyata Rd → Service Lane → Junction', dist: 2.5, coeff: 0.8,  note: 'Dedicated 2W corridor inside Manyata' },
+      { name: 'Sahakara Nagar Cross',         via: 'Sahakara Nagar → Kogilu Cross',         dist: 3.4, coeff: 1.0,  note: 'Quiet internal road, recommended for bikes' },
+      { name: 'Thanisandra Main Rd',          via: 'Thanisandra Main → Nagawara Cross',     dist: 2.9, coeff: 1.2,  note: 'High footfall near tech parks 8–10 AM' },
+    ],
+    '4w': [
+      { name: 'Thanisandra Rd Direct',        via: 'Thanisandra Main → Nagawara',           dist: 3.0, coeff: 1.0,  note: 'Standard car route, 3 signals' },
+      { name: 'ORR Manyata Exit',             via: 'Manyata Tech Park → ORR Exit → Jn',    dist: 3.8, coeff: 0.85, note: 'Recommended for office-hour traffic' },
+      { name: 'Kogilu–Hennur Bypass',         via: 'Kogilu Rd → Hennur Cross → Junction',  dist: 4.2, coeff: 0.9,  note: 'Wide road, avoid Mon–Fri 6–8 PM' },
+    ],
+  },
+};
+
+function computeRoutes(armId, vehicleType, segmentData) {
+  const opts = ROUTE_OPTIONS[armId]?.[vehicleType] ?? [];
+  const segs = segmentData[armId] ?? [];
+  const avgSpeed = segs.length ? segs.reduce((s, x) => s + x.speed, 0) / segs.length : 20;
+  return opts.map(opt => {
+    const eta = Math.round((opt.dist / (avgSpeed * opt.coeff)) * 60);
+    return { ...opt, eta };
+  }).sort((a, b) => a.eta - b.eta);
+}
+
+// ─── GPS SENSOR PANEL ─────────────────────────────────────────────────────────
+function GpsSensorPanel({ gpsData }) {
+  if (!gpsData) return null;
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="3" fill="#22c55e"/><circle cx="7" cy="7" r="6" fill="none" stroke="#22c55e" strokeWidth="1" strokeDasharray="2,2"/></svg>
+          Live GPS Sensors — Junction Entrances
+        </div>
+        <span className="badge badge-green">4 sensors · live</span>
+      </div>
+      <div className="gps-grid">
+        {gpsData.map((s, i) => {
+          const arm = ARMS.find(a => a.id === s.armId);
+          return (
+            <div className="gps-sensor-card" key={s.armId} style={{borderLeft:`2px solid ${arm?.color ?? '#334155'}`}}>
+              <div className="gps-sensor-name">
+                <span style={{color: arm?.color}}>{s.name}</span>
+                <div className="gps-lock">
+                  <div className="gps-lock-dot" style={{background: s.locked ? '#22c55e' : '#ef4444', boxShadow: s.locked ? '0 0 4px #22c55e' : 'none'}}/>
+                  <span style={{color: s.locked ? '#22c55e' : '#ef4444'}}>{s.locked ? `LOCK · ${s.satellites} sat` : 'SEARCHING'}</span>
+                </div>
+              </div>
+              <div className="gps-coords">📍 {s.lat}°N, {s.lng}°E · ±{s.accuracy}m</div>
+              <div className="gps-row">
+                <div className="gps-metric">
+                  <div className="gps-metric-val" style={{color: s.speed < 15 ? '#ef4444' : s.speed < 30 ? '#fbbf24' : '#22c55e'}}>{s.speed}</div>
+                  <div className="gps-metric-unit">km/h</div>
+                </div>
+                <div className="gps-heading-badge">{s.headingLabel}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── SEGMENT SPEED MAP ────────────────────────────────────────────────────────
+function SegmentSpeedMap({ segmentData }) {
+  if (!segmentData) return null;
+  const speedColor = (spd) => spd > 35 ? '#22c55e' : spd > 20 ? '#fbbf24' : spd > 10 ? '#f97316' : '#ef4444';
+  const flowColor  = (flow) => flow === 'Free' ? '#22c55e' : flow === 'Moderate' ? '#fbbf24' : flow === 'Slow' ? '#f97316' : '#ef4444';
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="6" width="12" height="2" rx="1" fill="#f59e0b"/><circle cx="4" cy="7" r="2" fill="#22c55e"/><circle cx="10" cy="7" r="2" fill="#ef4444"/></svg>
+          Road Segment Speed — Leading to Junction
+        </div>
+        <span className="badge badge-yellow">per arm · 3 segments</span>
+      </div>
+      {ARMS.map(arm => {
+        const segs = segmentData[arm.id] ?? [];
+        return (
+          <div className="seg-arm" key={arm.id}>
+            <div className="seg-arm-name">
+              <span style={{color: arm.color}}>↗ {arm.short}</span>
+              <span style={{fontSize:'10px', color:'#475569'}}>← junction direction</span>
+            </div>
+            <div className="seg-row">
+              {segs.map((seg, si) => (
+                <div className="seg-block" key={si}
+                  style={{background: speedColor(seg.speed) + '18', borderColor: speedColor(seg.speed) + '55'}}>
+                  <div className="seg-label">{seg.label}</div>
+                  <div className="seg-label" style={{color:'#475569', marginBottom:'2px'}}>{seg.desc}</div>
+                  <div className="seg-speed" style={{color: speedColor(seg.speed)}}>{seg.speed} <span style={{fontSize:'9px', fontWeight:'400', color:'#64748b'}}>km/h</span></div>
+                  <div className="seg-flow" style={{color: flowColor(seg.flow)}}>{seg.flow}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── ROUTE ADVISOR ────────────────────────────────────────────────────────────
+function RouteAdvisor({ segmentData, selectedArm, onSelectArm }) {
+  const [vehicleType, setVehicleType] = useState('2w');
+
+  const routes = useMemo(() => {
+    if (!segmentData || !selectedArm) return [];
+    return computeRoutes(selectedArm, vehicleType, segmentData);
+  }, [segmentData, selectedArm, vehicleType]);
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 10h10M2 7h10M2 4h10" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          Fastest Route Advisor
+        </div>
+        <span className="badge badge-green">AI · real-time</span>
+      </div>
+      {/* Arm selector */}
+      <div style={{display:'flex', gap:'5px', marginBottom:'10px', flexWrap:'wrap'}}>
+        {ARMS.map(arm => (
+          <div key={arm.id}
+            onClick={() => onSelectArm(arm.id)}
+            style={{
+              padding:'4px 10px', borderRadius:'6px', cursor:'pointer', fontSize:'11px', fontWeight:'600',
+              border:`1px solid ${selectedArm === arm.id ? arm.color : '#334155'}`,
+              background: selectedArm === arm.id ? arm.color + '22' : '#0f172a',
+              color: selectedArm === arm.id ? arm.color : '#64748b',
+            }}>
+            {arm.short}
+          </div>
+        ))}
+      </div>
+      {/* Vehicle type tabs */}
+      <div className="route-tabs">
+        <div className={`route-tab ${vehicleType === '2w' ? 'active-2w' : ''}`} onClick={() => setVehicleType('2w')}>
+          🏍️ Two-Wheeler
+        </div>
+        <div className={`route-tab ${vehicleType === '4w' ? 'active-4w' : ''}`} onClick={() => setVehicleType('4w')}>
+          🚗 Four-Wheeler
+        </div>
+      </div>
+      {/* Route cards */}
+      {routes.map((r, i) => (
+        <div className={`route-card ${i === 0 ? 'fastest' : ''}`} key={i}>
+          <div className="route-card-header">
+            <span className={`route-rank route-rank-${i+1}`}>{i === 0 ? '🥇 Fastest' : i === 1 ? '🥈 Alt 1' : '🥉 Alt 2'}</span>
+            <span style={{fontSize:'11px', color: i === 0 ? '#22c55e' : '#64748b', fontWeight:'600'}}>{r.eta} min</span>
+          </div>
+          <div className="route-name">{r.name}</div>
+          <div className="route-via">via {r.via}</div>
+          <div className="route-stats">
+            <div className="route-stat">📏 <strong>{r.dist} km</strong></div>
+            <div className="route-stat">⏱ <strong>{r.eta} min ETA</strong></div>
+          </div>
+          <div className={vehicleType === '2w' ? 'route-note-2w' : 'route-note-4w'}>
+            {vehicleType === '2w' ? '🏍️' : '🚗'} {r.note}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── NammaFix: Civic Complaint Data (Hebbal + nearby wards affecting junction) ─
+const NF_ISSUE_ICONS = {
+  pothole: '🕳️', streetlight: '💡', garbage: '🗑️', flooding: '🌊',
+  encroachment: '⛔', sewage: '🚰', tree: '🌳', other: '❓',
+};
+const NF_SEV_TAG = {
+  critical: { cls: 'nf-tag-red',    text: 'Critical' },
+  high:     { cls: 'nf-tag-orange', text: 'High'     },
+  medium:   { cls: 'nf-tag-yellow', text: 'Medium'   },
+  low:      { cls: 'nf-tag-green',  text: 'Low'      },
+};
+const NF_STATUS_TAG = {
+  open:        { cls: 'nf-tag-red',    text: 'Open'       },
+  assigned:    { cls: 'nf-tag-orange', text: 'Assigned'   },
+  in_progress: { cls: 'nf-tag-blue',  text: 'In Progress' },
+  resolved:    { cls: 'nf-tag-green', text: 'Resolved'    },
+  escalated:   { cls: 'nf-tag-red',   text: 'Escalated ⬆️' },
+};
+
+// NammaFix seed complaints for wards adjoining Nagawara Junction
+// Hebbal (ward 6, North arm), Nagavara area (North), Kalyan Nagar (East), Thanisandra/Manyata (West)
+// These directly impact traffic entering the junction
+const NF_COMPLAINTS_SEED = [
+  {
+    id: 'nf-001', title: 'Pothole cluster — Hebbal Flyover service road',
+    description: 'Three large potholes on the service road leading to Nagawara junction from Hebbal. Vehicles swerving causing near-misses.',
+    type: 'pothole', severity: 'critical', status: 'escalated',
+    ward: 'Hebbal (Ward 6)', arm: 'north', upvotes: 73, escalationLevel: 3,
+    hoursElapsed: 96, slaHours: 48,
+    aiClassification: 'Pothole · BBMP Roads Division · North Arm impact', filedAt: '2026-11-19T07:30:00Z',
+    trafficImpact: 'Causes lane merging → adds ~12 min to North arm queue',
+  },
+  {
+    id: 'nf-002', title: 'Sewage overflow — Nagavara Main Rd near junction',
+    description: 'BWSSB pipe burst causing sewage to flood 50m of road 400m north of Nagawara junction. Left lane completely blocked.',
+    type: 'sewage', severity: 'critical', status: 'in_progress',
+    ward: 'Hebbal (Ward 6)', arm: 'north', upvotes: 55, escalationLevel: 3,
+    hoursElapsed: 18, slaHours: 12,
+    aiClassification: 'Sewage Overflow · BWSSB · North Arm lane reduction', filedAt: '2026-11-21T07:00:00Z',
+    trafficImpact: 'Left lane blocked → 40% capacity loss on North arm',
+  },
+  {
+    id: 'nf-003', title: 'Streetlight out — Kalyan Nagar approach to junction',
+    description: '8 consecutive streetlights non-functional on Kalyan Nagar Road, 200m to 1km from Nagawara junction. Night commuters at risk.',
+    type: 'streetlight', severity: 'high', status: 'assigned',
+    ward: 'Kalyan Nagar (Ward 85)', arm: 'east', upvotes: 38, escalationLevel: 2,
+    hoursElapsed: 56, slaHours: 72,
+    aiClassification: 'Streetlight Outage · BESCOM · East Arm visibility', filedAt: '2026-11-18T14:00:00Z',
+    trafficImpact: 'Reduced night-time speed → 15% lower throughput after 7 PM',
+  },
+  {
+    id: 'nf-004', title: 'Garbage pile blocking left turn — Manyata Rd',
+    description: 'Uncollected garbage obstructing the left lane on Thanisandra Main near Manyata Tech Park gate for 3 days.',
+    type: 'garbage', severity: 'high', status: 'open',
+    ward: 'Thanisandra (Ward 7)', arm: 'west', upvotes: 29, escalationLevel: 1,
+    hoursElapsed: 72, slaHours: 24,
+    aiClassification: 'Garbage Obstruction · BBMP Solid Waste · West Arm flow', filedAt: '2026-11-20T08:00:00Z',
+    trafficImpact: 'Left-turn lane blocked → forces merge, adds 8 min to West arm',
+  },
+  {
+    id: 'nf-005', title: 'Road flooding underpass — RT Nagar approach',
+    description: 'Underpass on RT Nagar road floods with 2 feet of water during rain. Forces all traffic onto surface road through the junction.',
+    type: 'flooding', severity: 'critical', status: 'escalated',
+    ward: 'RT Nagar (Ward 5)', arm: 'south', upvotes: 102, escalationLevel: 4,
+    hoursElapsed: 120, slaHours: 24,
+    aiClassification: 'Flooding · BBMP Drainage + BWSSB · South Arm diversion', filedAt: '2026-11-17T06:00:00Z',
+    trafficImpact: 'Forces surface road diversion → 60% spike in South arm density',
+  },
+  {
+    id: 'nf-006', title: 'Fallen tree partially blocking road — Hebbal Lake Rd',
+    description: 'Storm-fallen tree reduced Hebbal Lake Rd to single lane. BBMP Horticulture yet to respond after 10 hours.',
+    type: 'tree', severity: 'high', status: 'assigned',
+    ward: 'Hebbal (Ward 6)', arm: 'north', upvotes: 21, escalationLevel: 1,
+    hoursElapsed: 10, slaHours: 6,
+    aiClassification: 'Fallen Tree · BBMP Horticulture · North Arm lane blockage', filedAt: '2026-11-22T00:30:00Z',
+    trafficImpact: 'Single-lane operation → density at North arm elevated by ~25%',
+  },
+  {
+    id: 'nf-007', title: 'Encroachment — vendor stalls on Kalyan Nagar Rd shoulder',
+    description: 'Street vendors using the road shoulder as market, narrowing two-wheeler path significantly. Exists since 2 weeks.',
+    type: 'encroachment', severity: 'medium', status: 'open',
+    ward: 'Kalyan Nagar (Ward 85)', arm: 'east', upvotes: 15, escalationLevel: 1,
+    hoursElapsed: 336, slaHours: 168,
+    aiClassification: 'Encroachment · BBMP Enforcement · East Arm 2W lane', filedAt: '2026-11-08T09:00:00Z',
+    trafficImpact: '2W bypass lane blocked → funnels bikes into main carriageway',
+  },
+];
+
+// NammaFix Ward Scoreboard — wards feeding into Nagawara Junction
+const NF_WARDS = [
+  { ward: 6,   wardName: 'Hebbal',          corpName: 'Ramesh Gowda',    party: 'BJP', resolvedOnTime: 48, total: 55, pendingOver7: 5,  rating: 4.2, arm: 'north', resolveRate: 87 },
+  { ward: 7,   wardName: 'Thanisandra',      corpName: 'Divya Krishnan',  party: 'INC', resolvedOnTime: 22, total: 44, pendingOver7: 16, rating: 2.7, arm: 'west',  resolveRate: 50 },
+  { ward: 85,  wardName: 'Kalyan Nagar',     corpName: 'Suresh Rao',      party: 'JD(S)', resolvedOnTime: 39, total: 53, pendingOver7: 10, rating: 3.6, arm: 'east', resolveRate: 74 },
+  { ward: 5,   wardName: 'RT Nagar',         corpName: 'Latha Venkatesh', party: 'INC', resolvedOnTime: 35, total: 61, pendingOver7: 14, rating: 3.4, arm: 'south', resolveRate: 57 },
+  { ward: 110, wardName: 'Manyata/Kogilu',   corpName: 'Bharath Nair',    party: 'BJP', resolvedOnTime: 41, total: 52, pendingOver7: 7,  rating: 3.8, arm: 'west',  resolveRate: 79 },
+];
+
+// Map arm → density impact contribution
+const NF_ARM_LABELS = { north: 'North · Hebbal', south: 'South · RT Nagar', east: 'East · Kalyan Nagar', west: 'West · Manyata' };
+const NF_ARM_COLORS = { north: '#3b82f6', south: '#a855f7', east: '#f59e0b', west: '#22c55e' };
+
+// ─── NammaFix Components ──────────────────────────────────────────────────────
+
+function NfComplaintFeed({ complaints, votes, onVote, densities }) {
+  const [tab, setTab] = useState('all');
+  const tabs = [
+    { key: 'all',      label: 'All',      count: complaints.length },
+    { key: 'critical', label: 'Critical', count: complaints.filter(c => c.severity === 'critical').length },
+    { key: 'escalated',label: 'Escalated',count: complaints.filter(c => c.status === 'escalated').length },
+    { key: 'sla',      label: 'SLA Breached', count: complaints.filter(c => c.hoursElapsed > c.slaHours && c.status !== 'resolved').length },
+  ];
+  const filtered = tab === 'all' ? complaints
+    : tab === 'critical' ? complaints.filter(c => c.severity === 'critical')
+    : tab === 'escalated' ? complaints.filter(c => c.status === 'escalated')
+    : complaints.filter(c => c.hoursElapsed > c.slaHours && c.status !== 'resolved');
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3h10M2 7h7M2 11h5" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          Civic Issue Feed — Junction Area
+        </div>
+        <span className="badge badge-yellow">{complaints.length} reports</span>
+      </div>
+      <div className="nf-feed-tabs">
+        {tabs.map(t => (
+          <div key={t.key} className={`nf-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+            {t.label} <span style={{opacity:0.7, fontSize:'10px'}}>({t.count})</span>
+          </div>
+        ))}
+      </div>
+      <div className="nf-feed">
+        {filtered.map(c => {
+          const sevTag = NF_SEV_TAG[c.severity] ?? NF_SEV_TAG.medium;
+          const statTag = NF_STATUS_TAG[c.status] ?? NF_STATUS_TAG.open;
+          const armColor = NF_ARM_COLORS[c.arm] ?? '#64748b';
+          const armDensity = densities ? densities.find(d => d.id === c.arm) : null;
+          const voted = votes[c.id];
+          const slaBreach = c.hoursElapsed > c.slaHours;
+          return (
+            <div className={`nf-complaint sev-${c.severity}`} key={c.id}>
+              <div className="nf-c-icon" style={{background: armColor + '22', border: `1px solid ${armColor}44`}}>
+                {NF_ISSUE_ICONS[c.type] ?? '❓'}
+              </div>
+              <div style={{flex:1, minWidth:0}}>
+                <div className="nf-c-title">{c.title}</div>
+                <div className="nf-c-meta">
+                  <span>📍 {c.ward}</span>
+                  <span style={{color: armColor}}>→ {NF_ARM_LABELS[c.arm]}</span>
+                  <span>⏰ {c.hoursElapsed}h ago</span>
+                </div>
+                <div className="nf-c-desc">{c.description}</div>
+                {c.trafficImpact && (
+                  <div style={{marginTop:'5px', background:'#1e3a5f33', border:'1px solid #1e3a5f', borderRadius:'5px', padding:'4px 8px', fontSize:'10px', color:'#60a5fa'}}>
+                    🚦 Traffic Impact: {c.trafficImpact}
+                    {armDensity && <span style={{marginLeft:'6px', color: armDensity.pct > 70 ? '#f87171' : '#fbbf24'}}>· Current: {armDensity.pct}% density</span>}
+                  </div>
+                )}
+                <div className="nf-c-tags">
+                  <span className={`nf-tag ${sevTag.cls}`}>{sevTag.text}</span>
+                  <span className={`nf-tag ${statTag.cls}`}>{statTag.text}</span>
+                  {slaBreach && <span className="nf-tag nf-tag-red">⏳ SLA Breach +{c.hoursElapsed - c.slaHours}h</span>}
+                  {c.escalationLevel >= 3 && <span className="nf-tag nf-tag-orange">L{c.escalationLevel} Escalation</span>}
+                  <span className="nf-tag nf-tag-blue">{c.aiClassification}</span>
+                </div>
+                <div className={`nf-upvote ${voted ? 'voted' : ''}`} onClick={() => onVote(c.id)}>
+                  👍 {(c.upvotes + (voted ? 1 : 0))} {voted ? '· Upvoted' : 'Upvote'}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function NfFileReport({ onSubmit }) {
+  const [title, setTitle] = useState('');
+  const [desc, setDesc] = useState('');
+  const [type, setType] = useState('pothole');
+  const [severity, setSeverity] = useState('high');
+  const [arm, setArm] = useState('north');
+  const [name, setName] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [cid, setCid] = useState('');
+
+  const issueTypes = ['pothole','streetlight','garbage','flooding','encroachment','sewage','tree','other'];
+
+  const handleSubmit = () => {
+    if (!title.trim()) return;
+    const id = 'NF-' + Date.now().toString(36).toUpperCase();
+    setCid(id);
+    setSubmitted(true);
+    onSubmit && onSubmit({ id, title, desc, type, severity, arm, name: name || 'Anonymous' });
+  };
+
+  if (submitted) {
+    return (
+      <div className="card">
+        <div className="card-header">
+          <div className="card-title">📋 File a Civic Report</div>
+        </div>
+        <div className="nf-success">
+          <div style={{fontSize:'28px', marginBottom:'8px'}}>✅</div>
+          <div style={{fontSize:'13px', fontWeight:'700', color:'#4ade80', marginBottom:'4px'}}>Report Submitted!</div>
+          <div style={{fontSize:'11px', color:'#64748b', marginBottom:'8px'}}>Your complaint ID:</div>
+          <div style={{fontSize:'18px', fontWeight:'800', color:'#22c55e', letterSpacing:'0.1em', marginBottom:'8px'}}>{cid}</div>
+          <div style={{fontSize:'10px', color:'#64748b', marginBottom:'12px'}}>AI-classified · Sent to ward corporator · Logged in NammaFix</div>
+          <button className="nf-submit-btn" style={{width:'auto', padding:'7px 20px', fontSize:'11px'}} onClick={() => setSubmitted(false)}>
+            File Another
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="2" y="1" width="10" height="12" rx="2" stroke="#f97316" strokeWidth="1.5"/><path d="M5 5h4M5 8h3" stroke="#f97316" strokeWidth="1.2" strokeLinecap="round"/></svg>
+          File a Civic Report
+        </div>
+        <span className="badge badge-yellow">powered by NammaFix</span>
+      </div>
+      <div style={{fontSize:'11px', color:'#64748b', marginBottom:'10px'}}>
+        Report road issues near Nagawara Junction. AI auto-classifies and routes to the right BBMP ward.
+      </div>
+      <div className="nf-file-card" style={{padding:0, background:'transparent', border:'none', gap:'10px', display:'flex', flexDirection:'column'}}>
+        <div>
+          <div className="nf-label">Issue Type</div>
+          <div className="nf-type-grid">
+            {issueTypes.map(t => (
+              <div key={t} className={`nf-type-btn ${type === t ? 'selected' : ''}`} onClick={() => setType(t)}>
+                {NF_ISSUE_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="nf-label">Junction Arm (Location)</div>
+          <select className="nf-input nf-select" value={arm} onChange={e => setArm(e.target.value)}>
+            <option value="north">North — Hebbal / ORR</option>
+            <option value="south">South — RT Nagar</option>
+            <option value="east">East — Kalyan Nagar</option>
+            <option value="west">West — Thanisandra / Manyata</option>
+          </select>
+        </div>
+        <div>
+          <div className="nf-label">Title <span style={{color:'#ef4444'}}>*</span></div>
+          <input className="nf-input" placeholder="Brief description of the issue" value={title} onChange={e => setTitle(e.target.value)}/>
+        </div>
+        <div>
+          <div className="nf-label">Description</div>
+          <textarea className="nf-input nf-textarea" placeholder="Location, duration, impact on traffic..." value={desc} onChange={e => setDesc(e.target.value)}/>
+        </div>
+        <div>
+          <div className="nf-label">Severity</div>
+          <div style={{display:'flex', gap:'6px', flexWrap:'wrap'}}>
+            {['critical','high','medium','low'].map(s => (
+              <div key={s} className={`nf-type-btn ${severity === s ? 'selected' : ''}`}
+                style={{padding:'5px 12px', flex:'none'}}
+                onClick={() => setSeverity(s)}>
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="nf-label">Your Name (optional)</div>
+          <input className="nf-input" placeholder="Anonymous" value={name} onChange={e => setName(e.target.value)}/>
+        </div>
+        <button className="nf-submit-btn" disabled={!title.trim()} onClick={handleSubmit}>
+          📤 Submit Report to NammaFix
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NfWardScoreboard({ densities }) {
+  // Sort by resolve rate ascending (worst first) so accountability is front-and-center
+  const sorted = [...NF_WARDS].sort((a, b) => a.resolveRate - b.resolveRate);
+  const worstWard = sorted[0];
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="card-title">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1l1.5 4h4l-3.3 2.4 1.3 4L7 9l-3.5 2.4 1.3-4L1.5 5H5.5z" fill="#f59e0b"/></svg>
+          Ward Accountability — Junction Arms
+        </div>
+        <span className="badge badge-yellow">NammaFix</span>
+      </div>
+      {worstWard && (
+        <div className="nf-shame">
+          🚨 <strong>Worst Ward: {worstWard.wardName} (Ward {worstWard.ward})</strong> — only {worstWard.resolveRate}% resolved · {worstWard.pendingOver7} issues pending &gt;7 days · Corp: {worstWard.corpName} ({worstWard.party})
+        </div>
+      )}
+      <div className="nf-ward-list">
+        {sorted.map(w => {
+          const rateColor = w.resolveRate >= 80 ? '#22c55e' : w.resolveRate >= 60 ? '#fbbf24' : '#ef4444';
+          const armColor = NF_ARM_COLORS[w.arm] ?? '#64748b';
+          const armDensity = densities ? densities.find(d => d.id === w.arm) : null;
+          return (
+            <div className="nf-ward-card" key={w.ward} style={{borderLeft:`2px solid ${armColor}`}}>
+              <div className="nf-ward-top">
+                <div>
+                  <div className="nf-ward-name">{w.wardName} (Ward {w.ward})</div>
+                  <div className="nf-ward-corp">{w.corpName} · {w.party}</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:'16px', fontWeight:'700', color: rateColor}}>{w.resolveRate}%</div>
+                  <div style={{fontSize:'10px', color:'#64748b'}}>resolved</div>
+                </div>
+              </div>
+              <div className="nf-ward-bar">
+                <div className="nf-ward-fill" style={{width: w.resolveRate + '%', background: rateColor}}/>
+              </div>
+              <div className="nf-ward-stats">
+                <div className="nf-ward-stat">📋 <strong>{w.total}</strong> total</div>
+                <div className="nf-ward-stat">⏳ <strong>{w.pendingOver7}</strong> pending &gt;7d</div>
+                <div className="nf-ward-stat">⭐ <strong>{w.rating}</strong>/5</div>
+              </div>
+              <div className="nf-traffic-link">
+                🚦 <span style={{color: armColor}}>Feeds → {NF_ARM_LABELS[w.arm]}</span>
+                {armDensity && <span style={{color: armDensity.pct > 70 ? '#f87171' : armDensity.pct > 40 ? '#fbbf24' : '#22c55e', marginLeft:'4px'}}>· {armDensity.pct}% density now</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Signal State Machine ─────────────────────────────────────────────────────
+function initSignalStates(signals) {
+  return signals.map((sig, i) => ({
+    armId: sig.armId,
+    phase: i === 0 ? 'GREEN' : 'RED',
+    timer: i === 0 ? sig.greenTime : 5,
+    greenTime: sig.greenTime,
+  }));
+}
+
+// ─── Main App ─────────────────────────────────────────────────────────────────
+function App() {
+  const [time, setTime] = useState(new Date());
+  const [adaptiveMode, setAdaptiveMode] = useState(true);
+  const [densities, setDensities] = useState(() => generateSensorData(null));
+  const [signalStates, setSignalStates] = useState(null);
+  const [notifications, setNotifications] = useState([]);   // junction-level alerts
+  const [broadcastLog, setBroadcastLog] = useState([]);     // per-traveller records
+  const [toasts, setToasts] = useState([]);
+  const [gpsData, setGpsData] = useState(() => generateGpsReadings(null));
+  const [segmentData, setSegmentData] = useState(null);
+  const [selectedArm, setSelectedArm] = useState('north');
+  const [nfVotes, setNfVotes] = useState({});
+  const [nfComplaints, setNfComplaints] = useState(NF_COMPLAINTS_SEED);
+  const signalRef = useRef(null);
+  const timerRef = useRef(null);
+  const segmentDataRef = useRef(null);
+
+  // Travellers: stable list, generated once
+  const travellers = useMemo(() => TRAVELLER_SEEDS.map((t, i) => ({
+    ...t,
+    id: 'T' + i,
+    short: ARMS.find(a => a.id === t.arm)?.short ?? t.arm,
+  })), []);
+
+  // Clock
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Sensor update every 5s + GPS + segment data
+  useEffect(() => {
+    const id = setInterval(() => {
+      setDensities(prev => {
+        const next = generateSensorData(prev);
+        setSegmentData(prevSeg => {
+          const nextSeg = generateSegmentData(next, prevSeg);
+          segmentDataRef.current = nextSeg;
+          return nextSeg;
+        });
+        return next;
+      });
+    }, 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  // GPS update every 2s
+  useEffect(() => {
+    const id = setInterval(() => setGpsData(prev => generateGpsReadings(prev)), 2000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Initialise segment data on first render
+  useEffect(() => {
+    const initSeg = generateSegmentData(densities, null);
+    setSegmentData(initSeg);
+    segmentDataRef.current = initSeg;
+  }, []); // eslint-disable-line
+
+  // Signal recompute
+  useEffect(() => {
+    const signals = computeSignals(densities, adaptiveMode);
+    if (!signalStates) {
+      setSignalStates(initSignalStates(signals));
+      signalRef.current = signals;
+    } else {
+      signalRef.current = signals;
+      setSignalStates(prev => prev.map((s, i) => ({
+        ...s,
+        greenTime: signals[i]?.greenTime ?? s.greenTime,
+      })));
+    }
+  }, [densities, adaptiveMode]);
+
+  // Signal phase ticker
+  useEffect(() => {
+    const id = setInterval(() => {
+      setSignalStates(prev => {
+        if (!prev) return prev;
+        return prev.map((sig, i) => {
+          if (sig.timer > 1) return { ...sig, timer: sig.timer - 1 };
+          if (sig.phase === 'GREEN')  return { ...sig, phase: 'YELLOW', timer: 3 };
+          if (sig.phase === 'YELLOW') return { ...sig, phase: 'RED',    timer: 30 };
+          const activeIdx = prev.findIndex(s => s.phase === 'GREEN' || s.phase === 'YELLOW');
+          const nextIdx = (i + 1) % prev.length;
+          if (nextIdx === (activeIdx === -1 ? 0 : (activeIdx + 1) % prev.length)) {
+            const signals = signalRef.current;
+            return { ...sig, phase: 'GREEN', timer: signals ? signals[nextIdx]?.greenTime ?? 30 : 30 };
+          }
+          return sig;
+        });
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ── Notification + 5km traveller broadcast engine ──────────────────────────
+  useEffect(() => {
+    function scheduleNext() {
+      const delay = rand(7000, 13000);
+      timerRef.current = setTimeout(() => {
+        setDensities(currentDensities => {
+          // Pick the arm with highest density or random
+          const heavyArms = currentDensities.filter(d => d.pct > 60);
+          const targetDensity = heavyArms.length > 0
+            ? heavyArms[rand(0, heavyArms.length - 1)]
+            : currentDensities[rand(0, 3)];
+          const arm = ARMS.find(a => a.id === targetDensity.id);
+
+          // Junction-level alert (pass segmentData via ref for exit time)
+          const currentSeg = segmentDataRef.current;
+          const { type, icon, msg, altRoute, exitTimeMins } = buildTravellerMessage(arm, targetDensity, 0, currentSeg);
+
+          // Find travellers within 5km heading toward this arm
+          const affected = travellers.filter(t => t.arm === arm.id);
+          const reachCount = affected.length;
+
+          const junctionNotif = {
+            id: Date.now() + Math.random(),
+            type, icon, msg, altRoute, exitTimeMins,
+            arm: arm.short,
+            time: new Date(),
+            reachCount,
+          };
+
+          setNotifications(n => [...n.slice(-24), junctionNotif]);
+
+          // Per-traveller broadcast records
+          const ts = Date.now();
+          const newBroadcasts = affected.map((t, bi) => {
+            const perTraveller = buildTravellerMessage(arm, targetDensity, t.dist, currentSeg);
+            return {
+              id: ts + bi + Math.random(),
+              travellerId: t.id,
+              ts: ts + bi * 50,
+              type: perTraveller.type,
+              icon: perTraveller.icon,
+              msg: perTraveller.msg,
+              altRoute: perTraveller.altRoute,
+              exitTimeMins: perTraveller.exitTimeMins,
+            };
+          });
+
+          setBroadcastLog(prev => [...prev.slice(-99), ...newBroadcasts]);
+
+          // Toast for critical/warning
+          if (type === 'critical' || type === 'warning') {
+            const toast = { ...junctionNotif, id: ts + 9999 };
+            setToasts(t => [...t.slice(-2), toast]);
+            setTimeout(() => setToasts(tt => tt.filter(x => x.id !== toast.id)), 7000);
+          }
+
+          return currentDensities;
+        });
+        scheduleNext();
+      }, delay);
+    }
+    scheduleNext();
+    return () => clearTimeout(timerRef.current);
+  }, [travellers]);
+
+  const closeToast = (id) => setToasts(t => t.filter(x => x.id !== id));
+  const totalBroadcast = broadcastLog.length;
+
+  const handleNfVote = (cid) => {
+    setNfVotes(v => ({ ...v, [cid]: !v[cid] }));
+  };
+
+  const handleNfSubmit = (report) => {
+    const newComplaint = {
+      id: report.id,
+      title: report.title,
+      description: report.desc || 'No description provided.',
+      type: report.type,
+      severity: report.severity,
+      status: 'open',
+      ward: NF_ARM_LABELS[report.arm] ?? report.arm,
+      arm: report.arm,
+      upvotes: 0,
+      escalationLevel: 1,
+      hoursElapsed: 0,
+      slaHours: report.severity === 'critical' ? 24 : report.severity === 'high' ? 72 : 168,
+      aiClassification: `${report.type.charAt(0).toUpperCase() + report.type.slice(1)} · AI-classified · ${NF_ARM_LABELS[report.arm] ?? report.arm}`,
+      filedAt: new Date().toISOString(),
+      trafficImpact: `New report near ${NF_ARM_LABELS[report.arm]} — monitoring for traffic impact`,
+    };
+    setNfComplaints(prev => [newComplaint, ...prev]);
+  };
+
+  return (
+    <div className="app">
+      <TopBar time={time} adaptiveMode={adaptiveMode} onToggleAdaptive={() => setAdaptiveMode(m => !m)}/>
+      <StatCards densities={densities} broadcastCount={totalBroadcast}/>
+      <div className="main">
+        <JunctionMap densities={densities} signalStates={signalStates}/>
+        <DensityPanel densities={densities}/>
+        <NotificationsPanel notifications={notifications}/>
+        <div className="full-span">
+          <SignalPanel signalStates={signalStates} adaptiveMode={adaptiveMode}/>
+        </div>
+      </div>
+      <div className="bottom-row">
+        <RadiusMap travellers={travellers} densities={densities} broadcastLog={broadcastLog}/>
+        <BroadcastLog broadcastLog={broadcastLog} travellers={travellers}/>
+      </div>
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', padding:'0 12px 12px'}}>
+        <GpsSensorPanel gpsData={gpsData}/>
+        <SegmentSpeedMap segmentData={segmentData}/>
+      </div>
+      <div style={{padding:'0 12px 12px'}}>
+        <RouteAdvisor segmentData={segmentData} selectedArm={selectedArm} onSelectArm={setSelectedArm}/>
+      </div>
+
+      {/* ── NammaFix Citizen Reporting Integration ─────────────────────── */}
+      <div className="nf-section">
+        <div className="nf-section-header">
+          <div>
+            <div className="nf-section-title">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <rect width="18" height="18" rx="5" fill="#f97316"/>
+                <path d="M9 4v5l3 2" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/>
+                <circle cx="9" cy="9" r="6" stroke="#fff" strokeWidth="1.5" fill="none"/>
+              </svg>
+              NammaFix — Citizen Civic Reporting
+            </div>
+            <div className="nf-section-sub">
+              Road issues filed by citizens in wards surrounding Nagawara Junction · directly linked to live traffic density per arm
+            </div>
+          </div>
+          <div style={{display:'flex', gap:'8px', flexWrap:'wrap'}}>
+            {densities.map(d => (
+              <div key={d.id} style={{background: '#0f172a', border:`1px solid ${NF_ARM_COLORS[d.id]}44`, borderRadius:'7px', padding:'4px 10px', fontSize:'11px', fontWeight:'600'}}>
+                <span style={{color: NF_ARM_COLORS[d.id]}}>{d.short}</span>
+                <span style={{color: d.pct > 70 ? '#f87171' : d.pct > 40 ? '#fbbf24' : '#4ade80', marginLeft:'5px'}}>{d.pct}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="nf-grid">
+          <NfComplaintFeed complaints={nfComplaints} votes={nfVotes} onVote={handleNfVote} densities={densities}/>
+          <NfWardScoreboard densities={densities}/>
+          <NfFileReport onSubmit={handleNfSubmit}/>
+        </div>
+      </div>
+
+      <ToastContainer toasts={toasts} onClose={closeToast}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

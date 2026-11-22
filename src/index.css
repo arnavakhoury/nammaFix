@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-brand: #f97316;
+    --color-brand-dark: #ea580c;
+    --color-surface: #fafaf9;
+    --color-border: #e5e7eb;
+  }
+  body {
+    @apply bg-stone-50 text-stone-900 antialiased;
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  }
+}

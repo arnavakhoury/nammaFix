@@ -1,10 +1,10 @@
 import type { Severity } from '../types';
 
 const severityConfig: Record<Severity, { label: string; classes: string }> = {
-  critical: { label: 'Critical', classes: 'bg-red-100 text-red-700 border-red-200' },
-  high:     { label: 'High',     classes: 'bg-orange-100 text-orange-700 border-orange-200' },
-  medium:   { label: 'Medium',   classes: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  low:      { label: 'Low',      classes: 'bg-green-100 text-green-700 border-green-200' },
+  critical: { label: 'Critical', classes: 'bg-red-500/15 text-red-400 border-red-500/20' },
+  high:     { label: 'High',     classes: 'bg-orange-500/15 text-orange-400 border-orange-500/20' },
+  medium:   { label: 'Medium',   classes: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/20' },
+  low:      { label: 'Low',      classes: 'bg-green-500/15 text-green-400 border-green-500/20' },
 };
 
 interface Props {

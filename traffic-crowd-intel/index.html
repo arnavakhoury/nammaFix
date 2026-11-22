@@ -1,0 +1,1646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TrafficCrowd Intel — Smart Signal System</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --purple: #bc8cff;
+      --orange: #ffa657;
+      --teal: #39d353;
+    }
+
+    body {
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0 10px;
+      border-top: 1px solid var(--border);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+    .header-meta {
+      display: flex; gap: 10px; align-items: center;
+      font-size: 11px; color: var(--muted);
+    }
+
+    /* ── Big Signal Bar ── */
+    .signal-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+    }
+    .signal-block {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 16px;
+      border-right: 1px solid var(--border);
+    }
+    .signal-block:last-child { border-right: none; }
+    .signal-light-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      align-items: center;
+      background: #0a0d10;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 5px;
+      flex-shrink: 0;
+    }
+    .signal-bulb {
+      width: 12px; height: 12px; border-radius: 50%;
+      opacity: 0.2;
+      transition: opacity 0.3s, box-shadow 0.3s;
+    }
+    .signal-bulb.on-red   { background: var(--red);    opacity: 1; box-shadow: 0 0 8px var(--red); }
+    .signal-bulb.on-yellow{ background: var(--yellow); opacity: 1; box-shadow: 0 0 8px var(--yellow); }
+    .signal-bulb.on-green { background: var(--green);  opacity: 1; box-shadow: 0 0 8px var(--green); }
+    .signal-info { flex: 1; min-width: 0; }
+    .signal-name {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      display: flex; align-items: center; gap: 7px;
+      margin-bottom: 2px;
+    }
+    .signal-name .sig-badge {
+      font-size: 10px; padding: 1px 7px; border-radius: 20px; font-weight: 600;
+    }
+    .signal-phase-label {
+      font-size: 18px; font-weight: 800; letter-spacing: 0.03em;
+      line-height: 1;
+      margin-bottom: 2px;
+    }
+    .signal-sub {
+      font-size: 11px; color: var(--muted);
+      display: flex; gap: 10px;
+      flex-wrap: wrap;
+    }
+    .signal-sub strong { color: var(--text); }
+
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+      display: inline-block;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── Layout ── */
+    .app {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 0;
+      height: calc(100vh - 61px);
+    }
+
+    /* ── Traffic Strip ── */
+    .traffic-strip {
+      grid-column: 1 / -1;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 0;
+      overflow: hidden;
+      flex-shrink: 0;
+      max-height: 220px;
+    }
+    .traffic-map-col {
+      flex: 1.1;
+      border-right: 1px solid var(--border);
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .traffic-status-col {
+      flex: 0.65;
+      border-right: 1px solid var(--border);
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .traffic-predict-col {
+      flex: 1.25;
+      padding: 14px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .strip-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    /* Road map SVG styles */
+    .road-svg { width: 100%; height: 90px; }
+
+    /* Traffic status pills */
+    .traffic-status-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .traffic-status-pill .pill-icon { font-size: 18px; flex-shrink: 0; }
+    .traffic-status-pill .pill-info { flex: 1; }
+    .traffic-status-pill .pill-label { font-size: 11px; color: var(--muted); }
+    .traffic-status-pill .pill-val { font-size: 14px; font-weight: 700; }
+    .pill-val.heavy { color: var(--red); }
+    .pill-val.slow  { color: var(--yellow); }
+    .pill-val.clear { color: var(--green); }
+    .pill-trend { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+
+    /* Predictive chart */
+    .predict-chart-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .predict-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+    }
+    .predict-hour { width: 32px; color: var(--muted); flex-shrink: 0; text-align: right; font-size: 10px; }
+    .predict-bar-wrap { flex: 1; height: 10px; background: var(--surface2); border-radius: 3px; overflow: hidden; position: relative; }
+    .predict-bar { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+    .predict-bar.p-clear  { background: var(--green); }
+    .predict-bar.p-slow   { background: var(--yellow); }
+    .predict-bar.p-heavy  { background: var(--red); }
+    .predict-row.current-hour .predict-bar-wrap { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+    .predict-row.current-hour .predict-hour { color: var(--accent); font-weight: 700; }
+    .predict-label-right { width: 36px; font-size: 10px; color: var(--muted); flex-shrink: 0; }
+    .predict-now-tag {
+      font-size: 9px;
+      padding: 1px 5px;
+      background: rgba(88,166,255,0.15);
+      color: var(--accent);
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* ── Panel base ── */
+    .panel {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel:last-child { border-right: none; }
+    .panel-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-title .badge {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 20px;
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 600;
+    }
+    .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); }
+    .badge-green { background: rgba(63,185,80,0.15); color: var(--green); }
+    .badge-orange { background: rgba(255,166,87,0.15); color: var(--orange); }
+    .badge-red { background: rgba(248,81,73,0.15); color: var(--red); }
+
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    /* ── Camera Feed ── */
+    .camera-wrap {
+      position: relative;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      aspect-ratio: 16/9;
+      margin-bottom: 16px;
+    }
+    #cameraFeed {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .camera-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(13,17,23,0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .camera-placeholder {
+      width: 100%;
+      height: 100%;
+      background: var(--surface2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .camera-placeholder svg { opacity: 0.4; }
+    .cam-live-badge {
+      position: absolute;
+      top: 10px; left: 10px;
+      background: var(--red);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      display: none;
+      align-items: center;
+      gap: 4px;
+    }
+    .cam-live-badge.show { display: flex; }
+    .cam-live-badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #fff;
+      animation: pulse 1s infinite;
+    }
+    .cam-label {
+      position: absolute;
+      bottom: 10px; right: 10px;
+      background: rgba(0,0,0,0.6);
+      color: var(--muted);
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .detection-box {
+      position: absolute;
+      border: 2px solid var(--accent);
+      border-radius: 4px;
+      display: none;
+    }
+    .detection-box.show { display: block; }
+
+    /* ── Crowd Meter ── */
+    .section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    .crowd-count-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .crowd-count {
+      font-size: 42px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+    .crowd-count span {
+      font-size: 15px;
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .crowd-density {
+      text-align: right;
+    }
+    .density-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .density-bar-wrap {
+      width: 100px;
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .density-bar {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.6s ease;
+      background: var(--green);
+    }
+    .density-bar.medium { background: var(--yellow); }
+    .density-bar.high { background: var(--red); }
+
+    /* ── Segment bars ── */
+    .segment-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+    .segment-row { display: flex; align-items: center; gap: 10px; }
+    .segment-icon { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+    .segment-name { width: 110px; font-size: 13px; color: var(--text); flex-shrink: 0; }
+    .segment-bar-wrap { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+    .segment-bar { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+    .segment-pct { width: 34px; text-align: right; font-size: 12px; color: var(--muted); flex-shrink: 0; }
+
+    /* ── Insight Cards ── */
+    .insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .insight-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .insight-card .ic-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .insight-card .ic-value { font-size: 16px; font-weight: 700; color: var(--text); }
+    .insight-card .ic-sub { font-size: 11px; color: var(--muted); }
+
+    /* ── Send Button ── */
+    .send-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent);
+      color: #0d1117;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .send-btn:hover { opacity: 0.9; }
+    .send-btn:active { transform: scale(0.98); }
+    .send-btn:disabled { opacity: 0.4; cursor: default; }
+    .send-btn.sending { background: var(--yellow); color: #0d1117; }
+    .send-btn.sent { background: var(--green); color: #0d1117; }
+
+    /* ── Signal B — Shopkeeper alerts ── */
+    .alert-stream { display: flex; flex-direction: column; gap: 12px; }
+    .alert-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      animation: slideIn 0.4s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .alert-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      border-radius: 3px 0 0 3px;
+    }
+    .alert-card.priority-high::before { background: var(--red); }
+    .alert-card.priority-medium::before { background: var(--yellow); }
+    .alert-card.priority-low::before { background: var(--green); }
+
+    .alert-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+    .alert-shop { font-size: 14px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+    .alert-time { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+    .alert-crowd-tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-bottom: 8px;
+    }
+    .alert-desc { font-size: 13px; color: var(--muted); margin-bottom: 10px; line-height: 1.5; }
+    .product-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .chip {
+      background: rgba(88,166,255,0.1);
+      border: 1px solid rgba(88,166,255,0.2);
+      color: var(--accent);
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+    .chip.hot {
+      background: rgba(255,166,87,0.1);
+      border-color: rgba(255,166,87,0.3);
+      color: var(--orange);
+    }
+    .alert-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .eta-row { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+    .eta-row strong { color: var(--text); }
+    .ack-btn {
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .ack-btn:hover { border-color: var(--green); color: var(--green); }
+    .ack-btn.acked { border-color: var(--green); color: var(--green); background: rgba(63,185,80,0.1); cursor: default; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 12px;
+      color: var(--muted);
+      text-align: center;
+      padding: 40px;
+    }
+    .empty-state svg { opacity: 0.3; }
+    .empty-state p { font-size: 13px; }
+
+    /* ── Stats bar at top of Signal B ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .stat-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .stat-box .s-val { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1; }
+    .stat-box .s-lbl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 20px;
+      font-size: 13px;
+      color: var(--text);
+      z-index: 999;
+      transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast-icon { font-size: 18px; }
+
+    /* Divider */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Camera start overlay */
+    .cam-start-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      cursor: pointer;
+    }
+    .start-cam-btn {
+      padding: 10px 22px;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent);
+      color: #0d1117;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cam-or { color: var(--muted); font-size: 12px; }
+    .sim-btn {
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .sim-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Analysis progress */
+    .analysis-bar-wrap {
+      background: var(--surface2);
+      border-radius: 4px;
+      height: 4px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .analysis-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--purple));
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .analysis-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .refresh-btn {
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    @media (max-width: 768px) {
+      .app { grid-template-columns: 1fr; height: auto; }
+      .panel { border-right: none; border-bottom: 1px solid var(--border); min-height: 70vh; }
+
+      /* ── Traffic strip collapses to a floating bottom-right widget ── */
+      .traffic-strip {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        z-index: 200;
+        width: 280px;
+        max-height: none;
+        flex-direction: column;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        overflow: hidden;
+        grid-column: unset;
+      }
+      .traffic-map-col,
+      .traffic-status-col,
+      .traffic-predict-col {
+        flex: none;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        padding: 10px 14px;
+      }
+      .traffic-predict-col { border-bottom: none; }
+
+      /* Collapse widget toggle button */
+      .traffic-toggle {
+        display: flex !important;
+      }
+
+      /* When collapsed, only show the toggle tab */
+      .traffic-strip.collapsed .traffic-map-col,
+      .traffic-strip.collapsed .traffic-status-col,
+      .traffic-strip.collapsed .traffic-predict-col {
+        display: none;
+      }
+
+      .road-svg { height: 70px; }
+
+      .predict-chart-wrap { max-height: 120px; overflow-y: auto; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <!-- Big signal status bar — TOP ROW -->
+  <div class="signal-bar">
+
+    <!-- Signal A -->
+    <div class="signal-block">
+      <div class="signal-light-stack">
+        <div class="signal-bulb" id="hdrA_red"    style="background:var(--red);"></div>
+        <div class="signal-bulb" id="hdrA_yellow" style="background:var(--yellow);"></div>
+        <div class="signal-bulb on-green" id="hdrA_green"  style="background:var(--green);"></div>
+      </div>
+      <div class="signal-info">
+        <div class="signal-name">
+          Signal A — Camera
+          <span class="sig-badge badge-blue" id="signalADot" style="display:inline-block;">Idle</span>
+        </div>
+        <div class="signal-phase-label" id="hdrAPhase" style="color:var(--green);">GREEN</div>
+        <div class="signal-sub">
+          <span>Crowd: <strong id="hdrACrowd">—</strong></span>
+          <span>Profile: <strong id="hdrAProfile">—</strong></span>
+          <span>Density: <strong id="hdrADensity">—</strong></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Signal B -->
+    <div class="signal-block">
+      <div class="signal-light-stack">
+        <div class="signal-bulb" id="hdrB_red"    style="background:var(--red);"></div>
+        <div class="signal-bulb" id="hdrB_yellow" style="background:var(--yellow);"></div>
+        <div class="signal-bulb" id="hdrB_green"  style="background:var(--green);"></div>
+      </div>
+      <div class="signal-info">
+        <div class="signal-name">
+          Signal B — Shopkeepers
+          <span class="sig-badge badge-green" id="signalBDot" style="display:inline-block;">Waiting</span>
+        </div>
+        <div class="signal-phase-label" id="hdrBPhase" style="color:var(--muted);">WAITING</div>
+        <div class="signal-sub">
+          <span>Broadcasts: <strong id="hdrBAlerts">0</strong></span>
+          <span>Ack'd: <strong id="hdrBAck">0</strong></span>
+          <span>Revenue opp: <strong id="hdrBRev">₹0</strong></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom row: logo + meta -->
+  <div class="header-top">
+    <div class="logo">
+      <div class="logo-icon">🚦</div>
+      TrafficCrowd Intel
+    </div>
+    <div class="header-meta">
+      <span id="lastSync">Not synced yet</span>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+
+  <!-- ═══ TRAFFIC STRIP ═══ -->
+  <div class="traffic-strip" id="trafficStrip">
+    <!-- Mobile toggle tab — hidden on desktop via CSS -->
+    <div class="traffic-toggle" onclick="toggleTrafficWidget()"
+      style="display:none; align-items:center; justify-content:space-between; padding:9px 14px; background:var(--surface2); cursor:pointer; border-bottom:1px solid var(--border); user-select:none;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:14px;">🚦</span>
+        <span style="font-size:12px;font-weight:700;color:var(--text);">Live Traffic</span>
+        <span id="widgetConditionBadge" style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(63,185,80,0.15);color:var(--green);font-weight:600;">—</span>
+      </div>
+      <span id="trafficToggleArrow" style="font-size:12px;color:var(--muted);">▲</span>
+    </div>
+
+    <!-- Col 1: Road map -->
+    <div class="traffic-map-col">
+      <div class="strip-title">🗺 Signal A → Signal B — Live Road</div>
+      <svg class="road-svg" viewBox="0 0 420 90" xmlns="http://www.w3.org/2000/svg" id="roadSvg">
+        <!-- Road background -->
+        <rect x="0" y="30" width="420" height="30" rx="4" fill="#21262d"/>
+        <!-- Lane divider dashes -->
+        <line x1="40" y1="45" x2="80" y2="45" stroke="#30363d" stroke-width="2" stroke-dasharray="6,6"/>
+        <line x1="100" y1="45" x2="140" y2="45" stroke="#30363d" stroke-width="2" stroke-dasharray="6,6"/>
+        <line x1="160" y1="45" x2="200" y2="45" stroke="#30363d" stroke-width="2" stroke-dasharray="6,6"/>
+        <line x1="220" y1="45" x2="260" y2="45" stroke="#30363d" stroke-width="2" stroke-dasharray="6,6"/>
+        <line x1="280" y1="45" x2="320" y2="45" stroke="#30363d" stroke-width="2" stroke-dasharray="6,6"/>
+        <line x1="340" y1="45" x2="380" y2="45" stroke="#30363d" stroke-width="2" stroke-dasharray="6,6"/>
+        <!-- Signal A marker -->
+        <circle cx="30" cy="45" r="10" fill="#161b22" stroke="#58a6ff" stroke-width="2"/>
+        <text x="30" y="49" text-anchor="middle" font-size="9" fill="#58a6ff" font-weight="bold">A</text>
+        <!-- Signal B marker -->
+        <circle cx="390" cy="45" r="10" fill="#161b22" stroke="#3fb950" stroke-width="2"/>
+        <text x="390" y="49" text-anchor="middle" font-size="9" fill="#3fb950" font-weight="bold">B</text>
+        <!-- Traffic flow cars (animated) -->
+        <g id="trafficCars"></g>
+        <!-- Speed label -->
+        <text x="210" y="20" text-anchor="middle" font-size="10" fill="#8b949e" id="roadSpeedLabel">— km/h avg</text>
+        <!-- Distance label -->
+        <text x="210" y="80" text-anchor="middle" font-size="9" fill="#8b949e">~1.2 km  •  Signal A to Signal B</text>
+      </svg>
+      <!-- Traffic light state row -->
+      <div style="display:flex;gap:12px;align-items:center;">
+        <div style="font-size:11px;color:var(--muted);">Signal A:</div>
+        <div id="sigALight" style="width:12px;height:12px;border-radius:50%;background:var(--green);"></div>
+        <div id="sigAPhase" style="font-size:11px;font-weight:600;color:var(--green);">GREEN</div>
+        <div style="font-size:11px;color:var(--muted);margin-left:12px;">→ B in</div>
+        <div id="etaRoad" style="font-size:11px;font-weight:700;color:var(--text);">—</div>
+      </div>
+    </div>
+
+    <!-- Col 2: Live status pills -->
+    <div class="traffic-status-col">
+      <div class="strip-title">🚦 Live Traffic Status</div>
+      <div class="traffic-status-pill">
+        <span class="pill-icon">🛣️</span>
+        <div class="pill-info">
+          <div class="pill-label">Road Condition</div>
+          <div class="pill-val" id="trafficCondition">—</div>
+        </div>
+        <div class="pill-trend" id="trafficTrend">—</div>
+      </div>
+      <div class="traffic-status-pill">
+        <span class="pill-icon">⚡</span>
+        <div class="pill-info">
+          <div class="pill-label">Avg Speed</div>
+          <div class="pill-val" id="trafficSpeed" style="color:var(--text);">— km/h</div>
+        </div>
+        <div class="pill-trend" id="speedVsNormal">—</div>
+      </div>
+      <div class="traffic-status-pill">
+        <span class="pill-icon">⏱️</span>
+        <div class="pill-info">
+          <div class="pill-label">Delay vs Normal</div>
+          <div class="pill-val" id="trafficDelay" style="color:var(--text);">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 3: Predictive chart -->
+    <div class="traffic-predict-col">
+      <div class="strip-title">📈 Predictive Traffic — Today's Forecast (Past-data model)</div>
+      <div class="predict-chart-wrap" id="predictChart"></div>
+    </div>
+
+  </div>
+  <!-- ══════════════════════════════════════ -->
+
+  <!-- ═══ PANEL A — Camera + Analysis ═══ -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        📷 Signal A — Camera Analysis
+        <span class="badge badge-blue" id="camStatus">Idle</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="countdownWrap" style="display:none;font-size:11px;color:var(--muted);">Next scan in <strong id="countdownVal">30</strong>s</span>
+        <button class="refresh-btn" id="pauseBtn" onclick="togglePause()" style="display:none">⏸ Pause</button>
+      </div>
+    </div>
+    <div class="panel-body">
+
+      <!-- Camera -->
+      <div class="camera-wrap" id="cameraWrap">
+        <div class="camera-placeholder" id="cameraPlaceholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+          </svg>
+          <span>Camera not started</span>
+        </div>
+        <video id="cameraFeed" autoplay muted playsinline style="display:none; width:100%; height:100%; object-fit:cover;"></video>
+        <canvas id="cameraCanvas" style="display:none;"></canvas>
+        <div class="cam-live-badge" id="camLiveBadge">LIVE</div>
+        <div class="cam-label" id="camLabel" style="display:none">Signal A — Intersection Camera</div>
+        <div class="detection-box" id="detBox1" style="top:20%;left:15%;width:18%;height:30%"></div>
+        <div class="detection-box" id="detBox2" style="top:30%;left:40%;width:14%;height:25%"></div>
+        <div class="detection-box" id="detBox3" style="top:25%;left:60%;width:20%;height:28%"></div>
+
+        <div class="cam-start-overlay" id="camStartOverlay">
+          <button class="start-cam-btn" onclick="startCamera()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+            Start Camera
+          </button>
+          <span class="cam-or">— or —</span>
+          <button class="sim-btn" onclick="startSimulation()">Use Simulation Mode</button>
+        </div>
+      </div>
+
+      <!-- Analysis progress -->
+      <div id="analysisProgressWrap" style="display:none;">
+        <div class="analysis-label">
+          <span id="analysisStepLabel">Detecting people...</span>
+          <span id="analysisStepPct">0%</span>
+        </div>
+        <div class="analysis-bar-wrap"><div class="analysis-bar" id="analysisBar"></div></div>
+      </div>
+
+      <!-- Crowd count -->
+      <div class="crowd-count-row">
+        <div>
+          <div class="section-label">Crowd at Signal</div>
+          <div class="crowd-count"><span id="crowdNum">—</span> <span>people</span></div>
+        </div>
+        <div class="crowd-density">
+          <div class="density-label">Density</div>
+          <div class="density-bar-wrap"><div class="density-bar" id="densityBar" style="width:0%"></div></div>
+          <div style="font-size:11px; color:var(--muted); margin-top:3px;" id="densityText">—</div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Segment breakdown -->
+      <div class="section-label">Demographic Segments</div>
+      <div class="segment-list" id="segmentList">
+        <div style="color:var(--muted); font-size:13px;">Start camera or simulation to analyse</div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Insight cards -->
+      <div class="section-label">Crowd Intelligence</div>
+      <div class="insight-grid" id="insightGrid">
+        <div class="insight-card"><div class="ic-label">Dominant Profile</div><div class="ic-value" id="iProfile">—</div></div>
+        <div class="insight-card"><div class="ic-label">Purchasing Power</div><div class="ic-value" id="iPower">—</div></div>
+        <div class="insight-card"><div class="ic-label">Peak Item Interest</div><div class="ic-value" id="iItem">—</div></div>
+        <div class="insight-card"><div class="ic-label">ETA at Signal B</div><div class="ic-value" id="iEta">—</div></div>
+      </div>
+
+      <hr class="divider">
+
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:0;" id="autoSendInfo">
+        <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;">
+          <span id="autoSendDot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;"></span>
+          <span id="autoSendLabel">Start camera or simulation to begin auto-broadcasting</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ PANEL B — Shopkeeper Notifications ═══ -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">
+        🏪 Signal B — Shopkeeper Alerts
+        <span class="badge badge-green" id="alertCountBadge">0 alerts</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="liveFeedBadge" style="display:none;font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(63,185,80,0.15);color:var(--green);font-weight:600;">● LIVE FEED</span>
+        <button class="refresh-btn" onclick="clearAlerts()">Clear</button>
+      </div>
+    </div>
+    <div class="panel-body" id="signalBBody">
+
+      <div class="stats-row">
+        <div class="stat-box"><div class="s-val" id="statAlerts">0</div><div class="s-lbl">Broadcasts</div></div>
+        <div class="stat-box"><div class="s-val" id="statAck">0</div><div class="s-lbl">Acknowledged</div></div>
+        <div class="stat-box"><div class="s-val" id="statRevOpp">₹0</div><div class="s-lbl">Revenue opp.</div></div>
+      </div>
+
+      <div class="alert-stream" id="alertStream">
+        <div class="empty-state" id="emptyState">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+            <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+          </svg>
+          <p>No alerts yet.<br/>Start camera or simulation — alerts will auto-appear here.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">
+  <span class="toast-icon" id="toastIcon">✅</span>
+  <span id="toastMsg">Alert sent!</span>
+</div>
+
+<script>
+// ════════════════════════════════════════
+//  State
+// ════════════════════════════════════════
+let analysisData = null;
+let alertCount = 0;
+let ackCount = 0;
+let totalRevOpp = 0;
+let cameraStream = null;
+
+// ── Auto-send loop state ──
+let autoLoopActive = false;
+let autoPaused = false;
+let countdownTimer = null;
+let countdownSeconds = 0;
+const AUTO_INTERVAL = 30; // seconds between scans
+
+// ── Crowd profiles library ──
+const PROFILES = [
+  {
+    name: "Office Commuters",
+    icon: "👔",
+    color: "#58a6ff",
+    desc: "Working professionals heading to or from offices. Time-pressed, prefer quick purchases.",
+    segments: [
+      { icon: "👔", name: "Office Workers", pct: 55, color: "#58a6ff" },
+      { icon: "🎒", name: "Students",       pct: 20, color: "#bc8cff" },
+      { icon: "🛍️", name: "Shoppers",       pct: 15, color: "#ffa657" },
+      { icon: "👨‍👩‍👧", name: "Families",      pct: 10, color: "#3fb950" },
+    ],
+    count: [180, 260],
+    density: [60, 80],
+    power: "Medium–High",
+    items: ["Coffee & snacks", "Quick lunch", "Stationery", "Phone accessories"],
+    eta: "4–6 min",
+    shops: [
+      { name: "Café & Snack Corner",  emoji: "☕", priority: "high",  products: ["Espresso", "Sandwiches", "Energy bars"], revenue: 4200, desc: "High footfall of office workers. Pre-brew coffee and prep grab-and-go sandwiches." },
+      { name: "Mobile Accessories",   emoji: "📱", priority: "medium", products: ["Earphones", "Chargers", "Screen guards"], revenue: 3100, desc: "Office commuters frequently need accessories. Keep fast-moving items at counter." },
+      { name: "Stationery & Books",   emoji: "📚", priority: "low",   products: ["Notebooks", "Pens", "Planners"], revenue: 1500, desc: "Moderate demand. Display new arrivals at storefront." },
+    ]
+  },
+  {
+    name: "School Students",
+    icon: "🎒",
+    color: "#bc8cff",
+    desc: "School and college students. High appetite for snacks, stationery, and low-cost items.",
+    segments: [
+      { icon: "🎒", name: "Students",       pct: 65, color: "#bc8cff" },
+      { icon: "👨‍👩‍👧", name: "Families",      pct: 20, color: "#3fb950" },
+      { icon: "👔", name: "Office Workers", pct: 10, color: "#58a6ff" },
+      { icon: "🧓", name: "Seniors",        pct: 5,  color: "#ffa657" },
+    ],
+    count: [120, 200],
+    density: [40, 65],
+    power: "Low–Medium",
+    items: ["Snacks & chips", "Stationery", "Beverages", "Books"],
+    eta: "3–5 min",
+    shops: [
+      { name: "Snack & Juice Stall",  emoji: "🥤", priority: "high",  products: ["Chips", "Juices", "Ice cream", "Candy"], revenue: 3600, desc: "Students are hungry after school! Stock up on affordable snacks and cold drinks." },
+      { name: "Stationery Shop",      emoji: "✏️", priority: "high",  products: ["Notebooks", "Pens", "Rulers", "Bags"], revenue: 2800, desc: "High demand for school supplies. Place discounted combos near entrance." },
+      { name: "Bookstore",            emoji: "📖", priority: "medium", products: ["Textbooks", "Comics", "Guides"], revenue: 1900, desc: "Students browse for guides and supplementary books. Create a visible display." },
+    ]
+  },
+  {
+    name: "Weekend Shoppers",
+    icon: "🛍️",
+    color: "#ffa657",
+    desc: "Families and leisure shoppers on a weekend outing. High spending intent, browsing mode.",
+    segments: [
+      { icon: "🛍️", name: "Shoppers",       pct: 40, color: "#ffa657" },
+      { icon: "👨‍👩‍👧", name: "Families",      pct: 35, color: "#3fb950" },
+      { icon: "💑",  name: "Couples",        pct: 15, color: "#39d353" },
+      { icon: "🎒", name: "Students",        pct: 10, color: "#bc8cff" },
+    ],
+    count: [220, 320],
+    density: [70, 90],
+    power: "High",
+    items: ["Fashion", "Toys & gifts", "Food & beverages", "Electronics"],
+    eta: "5–8 min",
+    shops: [
+      { name: "Clothing Boutique",    emoji: "👗", priority: "high",  products: ["Casual wear", "Kids clothes", "Accessories"], revenue: 8500, desc: "Weekend shoppers are in buying mode. Set up fresh arrivals and offer family combos." },
+      { name: "Toy & Gift Shop",      emoji: "🎁", priority: "high",  products: ["Toys", "Board games", "Gift wrap"], revenue: 5200, desc: "Families with kids are prime buyers. Display popular items at eye-level for children." },
+      { name: "Food Court Stalls",    emoji: "🍔", priority: "medium", products: ["Burgers", "Ice cream", "Fresh juice"], revenue: 4700, desc: "High appetite for food during leisure shopping. Extend seating and prep large batches." },
+    ]
+  },
+  {
+    name: "Morning Walkers",
+    icon: "🏃",
+    color: "#39d353",
+    desc: "Early risers out for a walk or exercise. Health-conscious, low purchasing urgency.",
+    segments: [
+      { icon: "🏃", name: "Fitness crowd", pct: 50, color: "#39d353" },
+      { icon: "🧓", name: "Seniors",        pct: 30, color: "#ffa657" },
+      { icon: "👔", name: "Professionals",  pct: 15, color: "#58a6ff" },
+      { icon: "👨‍👩‍👧", name: "Families",     pct: 5,  color: "#3fb950" },
+    ],
+    count: [80, 140],
+    density: [25, 45],
+    power: "Medium",
+    items: ["Health drinks", "Fruits", "Newspapers", "Yogurt"],
+    eta: "2–4 min",
+    shops: [
+      { name: "Fresh Fruits & Juices", emoji: "🍎", priority: "high",  products: ["Seasonal fruits", "Fresh juice", "Coconut water"], revenue: 2800, desc: "Morning walkers prioritize healthy food. Keep fresh stock available from early morning." },
+      { name: "Pharmacy & Health",     emoji: "💊", priority: "medium", products: ["Vitamins", "Protein bars", "First aid"], revenue: 1800, desc: "Health-conscious crowd looks for supplements. Create a wellness corner display." },
+      { name: "Newspaper & Books",     emoji: "📰", priority: "low",   products: ["Newspapers", "Magazines", "Light reads"], revenue: 900, desc: "Seniors especially enjoy morning reads. Keep popular titles at the front." },
+    ]
+  },
+  {
+    name: "Evening Rush",
+    icon: "🌆",
+    color: "#f85149",
+    desc: "Dense evening rush of mixed crowd heading home. High volume, varied needs, time-sensitive.",
+    segments: [
+      { icon: "👔", name: "Office Workers", pct: 45, color: "#58a6ff" },
+      { icon: "🎒", name: "Students",       pct: 25, color: "#bc8cff" },
+      { icon: "🛍️", name: "Shoppers",       pct: 20, color: "#ffa657" },
+      { icon: "👨‍👩‍👧", name: "Families",     pct: 10, color: "#3fb950" },
+    ],
+    count: [300, 450],
+    density: [85, 100],
+    power: "Medium–High",
+    items: ["Groceries", "Ready meals", "Beverages", "Household items"],
+    eta: "6–9 min",
+    shops: [
+      { name: "Grocery & Essentials", emoji: "🛒", priority: "high",  products: ["Vegetables", "Packaged goods", "Dairy"], revenue: 9200, desc: "PEAK DEMAND! Evening shoppers stock up on daily needs. Max staff and inventory now." },
+      { name: "Ready Meals & Diner",  emoji: "🍱", priority: "high",  products: ["Dabbas", "Rotis", "Curries", "Sweets"], revenue: 7800, desc: "Exhausted commuters want ready food. Pre-pack meals and keep warmers on." },
+      { name: "Beverages & Pan Shop", emoji: "🥤", priority: "medium", products: ["Tea", "Cold drinks", "Paan", "Cigarettes"], revenue: 3400, desc: "High turnover items. Keep the counter stocked and assistants ready." },
+    ]
+  }
+];
+
+// ════════════════════════════════════════
+//  Camera
+// ════════════════════════════════════════
+// ════════════════════════════════════════
+//  Auto-send loop helpers
+// ════════════════════════════════════════
+function setAutoSendStatus(label, dotColor, animate) {
+  const dot = document.getElementById('autoSendDot');
+  dot.style.background = dotColor;
+  dot.style.animation = animate ? 'pulse 1.4s infinite' : 'none';
+  document.getElementById('autoSendLabel').textContent = label;
+}
+
+function startCountdown() {
+  clearInterval(countdownTimer);
+  countdownSeconds = AUTO_INTERVAL;
+  document.getElementById('countdownWrap').style.display = 'inline-flex';
+  document.getElementById('countdownVal').textContent = countdownSeconds;
+  countdownTimer = setInterval(() => {
+    if (autoPaused) return;
+    countdownSeconds--;
+    document.getElementById('countdownVal').textContent = countdownSeconds;
+    if (countdownSeconds <= 0) {
+      clearInterval(countdownTimer);
+      triggerNextScan();
+    }
+  }, 1000);
+}
+
+function triggerNextScan() {
+  if (autoPaused) return;
+  document.getElementById('countdownWrap').style.display = 'none';
+  ['detBox1','detBox2','detBox3'].forEach(id => document.getElementById(id).classList.remove('show'));
+  setAutoSendStatus('Scanning crowd...', 'var(--yellow)', true);
+  runAnalysis(!!cameraStream);
+}
+
+function togglePause() {
+  autoPaused = !autoPaused;
+  const btn = document.getElementById('pauseBtn');
+  if (autoPaused) {
+    btn.textContent = '▶ Resume';
+    setAutoSendStatus('Auto-broadcast paused', 'var(--yellow)', false);
+  } else {
+    btn.textContent = '⏸ Pause';
+    setAutoSendStatus('Auto-broadcasting every 30s...', 'var(--green)', true);
+    // Resume countdown from wherever it left off
+    countdownTimer = setInterval(() => {
+      countdownSeconds--;
+      document.getElementById('countdownVal').textContent = countdownSeconds;
+      if (countdownSeconds <= 0) {
+        clearInterval(countdownTimer);
+        triggerNextScan();
+      }
+    }, 1000);
+  }
+}
+
+// ════════════════════════════════════════
+//  Camera
+// ════════════════════════════════════════
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    cameraStream = stream;
+    const video = document.getElementById('cameraFeed');
+    video.srcObject = stream;
+    video.style.display = 'block';
+    document.getElementById('cameraPlaceholder').style.display = 'none';
+    document.getElementById('camStartOverlay').style.display = 'none';
+    document.getElementById('camLiveBadge').classList.add('show');
+    document.getElementById('camLabel').style.display = 'block';
+    document.getElementById('camStatus').textContent = 'Live';
+    document.getElementById('camStatus').className = 'badge badge-green';
+    document.getElementById('signalADot').style.background = 'var(--green)';
+    activateAutoLoop();
+  } catch(e) {
+    showToast('⚠️', 'Camera access denied. Switching to simulation.');
+    startSimulation();
+  }
+}
+
+// ════════════════════════════════════════
+//  Simulation
+// ════════════════════════════════════════
+function startSimulation() {
+  document.getElementById('camStartOverlay').style.display = 'none';
+  document.getElementById('cameraPlaceholder').innerHTML = `
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.6">
+      <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/>
+    </svg>
+    <span style="color:var(--accent); font-weight:600;">Simulation Mode</span>
+    <span style="font-size:12px;">Auto-broadcasting every 30s...</span>`;
+  document.getElementById('cameraPlaceholder').style.display = 'flex';
+  document.getElementById('camLiveBadge').classList.add('show');
+  document.getElementById('camLabel').style.display = 'block';
+  document.getElementById('camStatus').textContent = 'Simulated';
+  document.getElementById('camStatus').className = 'badge badge-orange';
+  document.getElementById('signalADot').style.background = 'var(--yellow)';
+  activateAutoLoop();
+}
+
+function activateAutoLoop() {
+  autoLoopActive = true;
+  autoPaused = false;
+  document.getElementById('pauseBtn').style.display = 'inline-block';
+  document.getElementById('liveFeedBadge').style.display = 'inline-block';
+  setAutoSendStatus('Scanning crowd...', 'var(--yellow)', true);
+  runAnalysis(!!cameraStream);
+}
+
+// ════════════════════════════════════════
+//  Analysis engine
+// ════════════════════════════════════════
+function runAnalysis(isLive) {
+  const profile = PROFILES[Math.floor(Math.random() * PROFILES.length)];
+  const steps = [
+    "Detecting people...", "Classifying age groups...",
+    "Analysing attire & context...", "Profiling demographics...",
+    "Estimating purchasing intent...", "Generating crowd intelligence..."
+  ];
+  let step = 0;
+  const bar = document.getElementById('analysisBar');
+  const stepLabel = document.getElementById('analysisStepLabel');
+  const stepPct = document.getElementById('analysisStepPct');
+  document.getElementById('analysisProgressWrap').style.display = 'block';
+  document.getElementById('camStatus').textContent = 'Analysing...';
+
+  ['detBox1','detBox2','detBox3'].forEach(id => document.getElementById(id).classList.add('show'));
+
+  const interval = setInterval(() => {
+    const pct = Math.round(((step + 1) / steps.length) * 100);
+    bar.style.width = pct + '%';
+    stepLabel.textContent = steps[step];
+    stepPct.textContent = pct + '%';
+    step++;
+    if (step >= steps.length) {
+      clearInterval(interval);
+      setTimeout(() => finishAnalysis(profile), 400);
+    }
+  }, 500);
+}
+
+function finishAnalysis(profile) {
+  analysisData = profile;
+  const count = Math.floor(Math.random() * (profile.count[1] - profile.count[0]) + profile.count[0]);
+  const density = Math.floor(Math.random() * (profile.density[1] - profile.density[0]) + profile.density[0]);
+  const densityLabel = density > 70 ? 'High' : density > 45 ? 'Moderate' : 'Low';
+
+  document.getElementById('analysisProgressWrap').style.display = 'none';
+  document.getElementById('camStatus').textContent = 'Analysed ✓';
+  document.getElementById('camStatus').className = 'badge badge-green';
+
+  document.getElementById('crowdNum').textContent = count;
+
+  const dBar = document.getElementById('densityBar');
+  dBar.style.width = density + '%';
+  dBar.className = 'density-bar' + (density > 70 ? ' high' : density > 45 ? ' medium' : '');
+  document.getElementById('densityText').textContent = density + '% — ' + densityLabel;
+
+  const segList = document.getElementById('segmentList');
+  segList.innerHTML = profile.segments.map(s => `
+    <div class="segment-row">
+      <span class="segment-icon">${s.icon}</span>
+      <span class="segment-name">${s.name}</span>
+      <div class="segment-bar-wrap">
+        <div class="segment-bar" style="width:${s.pct}%; background:${s.color};"></div>
+      </div>
+      <span class="segment-pct">${s.pct}%</span>
+    </div>`).join('');
+
+  document.getElementById('iProfile').textContent = profile.icon + ' ' + profile.name;
+  document.getElementById('iPower').textContent = profile.power;
+  document.getElementById('iItem').textContent = profile.items[0];
+  document.getElementById('iEta').textContent = profile.eta;
+
+  // ── Update Signal A header ──
+  document.getElementById('hdrACrowd').textContent = count + ' people';
+  document.getElementById('hdrAProfile').textContent = profile.icon + ' ' + profile.name;
+  document.getElementById('hdrADensity').textContent = densityLabel;
+  document.getElementById('signalADot').textContent = 'Live ✓';
+  document.getElementById('signalADot').className = 'sig-badge badge-green';
+
+  showToast('🔍', `Crowd analysed: ${profile.name} (${count} people) — broadcasting...`);
+
+  // ── Auto-send immediately after analysis ──
+  autoSendToSignalB();
+}
+
+// ════════════════════════════════════════
+//  Auto Send to Signal B
+// ════════════════════════════════════════
+function autoSendToSignalB() {
+  if (!analysisData) return;
+  setAutoSendStatus('Transmitting to Signal B...', 'var(--accent)', true);
+  document.getElementById('camStatus').textContent = 'Sending...';
+  document.getElementById('camStatus').className = 'badge badge-blue';
+
+  // Header: Signal B goes yellow (receiving)
+  setHeaderSignalB('yellow');
+  document.getElementById('hdrBPhase').textContent = 'RECEIVING';
+  document.getElementById('hdrBPhase').style.color = 'var(--yellow)';
+  document.getElementById('signalBDot').textContent = 'Receiving…';
+  document.getElementById('signalBDot').className = 'sig-badge badge-orange';
+
+  setTimeout(() => {
+    document.getElementById('lastSync').textContent = 'Synced ' + new Date().toLocaleTimeString();
+    document.getElementById('camStatus').textContent = 'Broadcast ✓';
+    document.getElementById('camStatus').className = 'badge badge-green';
+
+    // Header: Signal B goes green (alert received)
+    setHeaderSignalB('green');
+    document.getElementById('hdrBPhase').textContent = 'ALERTED';
+    document.getElementById('hdrBPhase').style.color = 'var(--green)';
+    document.getElementById('signalBDot').textContent = 'Active ✓';
+    document.getElementById('signalBDot').className = 'sig-badge badge-green';
+
+    renderAlerts(analysisData);
+    showToast('📡', `Auto-broadcast to ${analysisData.shops.length} shopkeepers near Signal B`);
+    setAutoSendStatus(`Auto-broadcasting every ${AUTO_INTERVAL}s — next scan in ${AUTO_INTERVAL}s`, 'var(--green)', true);
+    if (!autoPaused) startCountdown();
+  }, 900);
+}
+
+// ════════════════════════════════════════
+//  Render alerts on Signal B
+// ════════════════════════════════════════
+function renderAlerts(profile) {
+  const stream = document.getElementById('alertStream');
+  const emptyState = document.getElementById('emptyState');
+  if (emptyState) emptyState.remove();
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  alertCount++;
+  const alertId = 'alert-' + Date.now();
+
+  profile.shops.forEach((shop, i) => {
+    totalRevOpp += shop.revenue;
+    const cardId = alertId + '-' + i;
+    const card = document.createElement('div');
+    card.className = `alert-card priority-${shop.priority}`;
+    card.id = cardId;
+
+    const priorityLabel = shop.priority === 'high' ? '🔴 High Priority' : shop.priority === 'medium' ? '🟡 Moderate' : '🟢 Routine';
+    const chips = shop.products.map((p, pi) => `<span class="chip ${pi === 0 ? 'hot' : ''}">${p}</span>`).join('');
+
+    card.innerHTML = `
+      <div class="alert-top">
+        <div class="alert-shop">${shop.emoji} ${shop.name}</div>
+        <span class="alert-time">${timeStr}</span>
+      </div>
+      <div class="alert-crowd-tag" style="background:rgba(88,166,255,0.1); color:var(--accent);">
+        ${profile.icon} Incoming: <strong style="margin-left:4px;">${profile.name}</strong> &nbsp;•&nbsp; ${priorityLabel}
+      </div>
+      <div class="alert-desc">${shop.desc}</div>
+      <div class="section-label" style="margin-bottom:6px;">Recommended to stock/prepare</div>
+      <div class="product-chips">${chips}</div>
+      <div class="alert-footer">
+        <div class="eta-row">
+          ⏱ ETA at Signal B: <strong>${profile.eta}</strong>
+          &nbsp;•&nbsp; Est. revenue opp: <strong style="color:var(--green);">₹${shop.revenue.toLocaleString('en-IN')}</strong>
+        </div>
+        <button class="ack-btn" onclick="ackAlert(this, '${cardId}')">Acknowledge</button>
+      </div>`;
+
+    stream.insertBefore(card, stream.firstChild);
+  });
+
+  updateStats();
+}
+
+function ackAlert(btn, id) {
+  if (btn.classList.contains('acked')) return;
+  btn.classList.add('acked');
+  btn.textContent = '✓ Acknowledged';
+  ackCount++;
+  updateStats();
+}
+
+function clearAlerts() {
+  document.getElementById('alertStream').innerHTML = `
+    <div class="empty-state" id="emptyState">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
+        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+        <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+      </svg>
+      <p>No alerts yet.<br/>Analyse a crowd at Signal A and send data.</p>
+    </div>`;
+  alertCount = 0; ackCount = 0; totalRevOpp = 0;
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById('statAlerts').textContent = alertCount;
+  document.getElementById('statAck').textContent = ackCount;
+  document.getElementById('statRevOpp').textContent = '₹' + (totalRevOpp / 1000).toFixed(1) + 'k';
+  document.getElementById('alertCountBadge').textContent = alertCount + ' alert' + (alertCount !== 1 ? 's' : '');
+  document.getElementById('alertCountBadge').className = 'badge ' + (alertCount > 0 ? 'badge-green' : 'badge-blue');
+  // Sync header Signal B sub-stats
+  document.getElementById('hdrBAlerts').textContent = alertCount;
+  document.getElementById('hdrBAck').textContent = ackCount;
+  document.getElementById('hdrBRev').textContent = '₹' + (totalRevOpp / 1000).toFixed(1) + 'k';
+}
+
+// ── Header signal light helper ──
+function setHeaderSignalB(phase) {
+  ['red','yellow','green'].forEach(c => {
+    const el = document.getElementById('hdrB_' + c);
+    el.className = 'signal-bulb' + (c === phase ? ' on-' + c : '');
+  });
+}
+function setHeaderSignalA(phase) {
+  ['red','yellow','green'].forEach(c => {
+    const el = document.getElementById('hdrA_' + c);
+    el.className = 'signal-bulb' + (c === phase ? ' on-' + c : '');
+  });
+}
+
+// ════════════════════════════════════════
+//  Toast
+// ════════════════════════════════════════
+let toastTimer;
+function showToast(icon, msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// Init header signal states
+setHeaderSignalB('red');
+document.getElementById('hdrBPhase').textContent = 'WAITING';
+document.getElementById('hdrBPhase').style.color = 'var(--muted)';
+
+// ════════════════════════════════════════════════════════
+//  TRAFFIC ENGINE
+// ════════════════════════════════════════════════════════
+
+// ── Hourly traffic pattern (past-data model, 0–100 congestion index) ──
+// Modelled on typical Bangalore urban corridor (Koramangala / Silk Board axis)
+const HOURLY_CONGESTION = [
+  { h:0,  label:'12am', idx:5,  speed:48, level:'clear' },
+  { h:1,  label:'1am',  idx:3,  speed:50, level:'clear' },
+  { h:2,  label:'2am',  idx:2,  speed:52, level:'clear' },
+  { h:3,  label:'3am',  idx:2,  speed:52, level:'clear' },
+  { h:4,  label:'4am',  idx:5,  speed:48, level:'clear' },
+  { h:5,  label:'5am',  idx:12, speed:42, level:'clear' },
+  { h:6,  label:'6am',  idx:28, speed:32, level:'slow'  },
+  { h:7,  label:'7am',  idx:72, speed:14, level:'heavy' },
+  { h:8,  label:'8am',  idx:91, speed:7,  level:'heavy' },
+  { h:9,  label:'9am',  idx:85, speed:9,  level:'heavy' },
+  { h:10, label:'10am', idx:48, speed:24, level:'slow'  },
+  { h:11, label:'11am', idx:38, speed:28, level:'slow'  },
+  { h:12, label:'12pm', idx:55, speed:19, level:'slow'  },
+  { h:13, label:'1pm',  idx:50, speed:22, level:'slow'  },
+  { h:14, label:'2pm',  idx:35, speed:30, level:'slow'  },
+  { h:15, label:'3pm',  idx:42, speed:26, level:'slow'  },
+  { h:16, label:'4pm',  idx:65, speed:16, level:'heavy' },
+  { h:17, label:'5pm',  idx:88, speed:8,  level:'heavy' },
+  { h:18, label:'6pm',  idx:95, speed:5,  level:'heavy' },
+  { h:19, label:'7pm',  idx:90, speed:7,  level:'heavy' },
+  { h:20, label:'8pm',  idx:70, speed:14, level:'heavy' },
+  { h:21, label:'9pm',  idx:45, speed:25, level:'slow'  },
+  { h:22, label:'10pm', idx:22, speed:38, level:'clear' },
+  { h:23, label:'11pm', idx:10, speed:46, level:'clear' },
+];
+
+const NORMAL_SPEED = 40; // free-flow speed km/h
+let trafficLiveInterval = null;
+let carAnimFrame = null;
+let cars = [];
+const NUM_CARS = 5;
+
+// ── Build predictive chart ──
+function buildPredictChart() {
+  const container = document.getElementById('predictChart');
+  const currentHour = new Date().getHours();
+  container.innerHTML = '';
+  HOURLY_CONGESTION.forEach(slot => {
+    const isCurrent = slot.h === currentHour;
+    const pctBar = Math.max(4, slot.idx);
+    const levelClass = slot.level === 'heavy' ? 'p-heavy' : slot.level === 'slow' ? 'p-slow' : 'p-clear';
+    const levelText = slot.level === 'heavy' ? 'Heavy' : slot.level === 'slow' ? 'Slow' : 'Clear';
+    const row = document.createElement('div');
+    row.className = 'predict-row' + (isCurrent ? ' current-hour' : '');
+    row.innerHTML = `
+      <span class="predict-hour">${slot.label}</span>
+      <div class="predict-bar-wrap">
+        <div class="predict-bar ${levelClass}" style="width:${pctBar}%;"></div>
+      </div>
+      <span class="predict-label-right">${slot.speed}km/h</span>
+      ${isCurrent ? '<span class="predict-now-tag">NOW</span>' : ''}`;
+    container.appendChild(row);
+  });
+  // Scroll current hour into view
+  const currentEl = container.querySelector('.current-hour');
+  if (currentEl) setTimeout(() => currentEl.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
+}
+
+// ── Spawn animated cars on SVG road ──
+function initCars(level) {
+  const g = document.getElementById('trafficCars');
+  g.innerHTML = '';
+  cars = [];
+  const spacing = level === 'heavy' ? 28 : level === 'slow' ? 48 : 70;
+  for (let i = 0; i < NUM_CARS; i++) {
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('width', '14');
+    rect.setAttribute('height', '8');
+    rect.setAttribute('rx', '2');
+    rect.setAttribute('y', '41');
+    const startX = 45 + i * spacing;
+    rect.setAttribute('x', String(startX % 350 + 45));
+    rect.setAttribute('fill', level === 'heavy' ? '#f85149' : level === 'slow' ? '#d29922' : '#3fb950');
+    g.appendChild(rect);
+    cars.push({ el: rect, x: startX % 350 + 45 });
+  }
+}
+
+function animateCars(speedKmh) {
+  cancelAnimationFrame(carAnimFrame);
+  // px per frame scaled to speed (max 3px/frame at 50+ km/h)
+  const pxPerFrame = Math.max(0.2, (speedKmh / 50) * 2.5);
+  function step() {
+    cars.forEach(car => {
+      car.x += pxPerFrame;
+      if (car.x > 375) car.x = 45;
+      car.el.setAttribute('x', String(Math.round(car.x)));
+    });
+    carAnimFrame = requestAnimationFrame(step);
+  }
+  carAnimFrame = requestAnimationFrame(step);
+}
+
+// ── Signal light cycling ──
+let signalPhase = 'green';
+let signalCycleTimer = null;
+const SIGNAL_CYCLE = { green: 30000, yellow: 4000, red: 28000 };
+function cycleSignal() {
+  const phases = ['green', 'yellow', 'red'];
+  const colors = { green: '#3fb950', yellow: '#d29922', red: '#f85149' };
+  const labels = { green: 'GREEN', yellow: 'YELLOW', red: 'RED' };
+  let idx = phases.indexOf(signalPhase);
+  idx = (idx + 1) % phases.length;
+  signalPhase = phases[idx];
+  // Traffic strip SVG light
+  document.getElementById('sigALight').style.background = colors[signalPhase];
+  document.getElementById('sigAPhase').textContent = labels[signalPhase];
+  document.getElementById('sigAPhase').style.color = colors[signalPhase];
+  // Header signal A light stack
+  setHeaderSignalA(signalPhase);
+  document.getElementById('hdrAPhase').textContent = labels[signalPhase];
+  document.getElementById('hdrAPhase').style.color = colors[signalPhase];
+  signalCycleTimer = setTimeout(cycleSignal, SIGNAL_CYCLE[signalPhase]);
+}
+
+// ── Live traffic updater ──
+function updateTrafficLive() {
+  const hour = new Date().getHours();
+  const slot = HOURLY_CONGESTION[hour];
+  // Add ±15% random noise for "live" feel
+  const noise = 1 + (Math.random() * 0.3 - 0.15);
+  const liveSpeed = Math.max(3, Math.round(slot.speed * noise));
+  const liveIdx   = Math.min(100, Math.round(slot.idx * noise));
+  const level     = liveIdx > 70 ? 'heavy' : liveIdx > 35 ? 'slow' : 'clear';
+
+  // ETA: distance 1.2km at liveSpeed
+  const etaMins = Math.round((1.2 / liveSpeed) * 60);
+  const delay   = Math.round(((1.2 / liveSpeed) - (1.2 / NORMAL_SPEED)) * 60);
+
+  // Condition text & class
+  const condText  = level === 'heavy' ? '🔴 Heavy' : level === 'slow' ? '🟡 Slow' : '🟢 Clear';
+  const condClass = level;
+  const trend     = liveIdx > slot.idx ? '▲ Worsening' : '▼ Easing';
+
+  document.getElementById('trafficCondition').textContent = condText;
+  document.getElementById('trafficCondition').className = 'pill-val ' + condClass;
+  document.getElementById('trafficTrend').textContent = trend;
+  document.getElementById('trafficSpeed').textContent = liveSpeed + ' km/h';
+  document.getElementById('speedVsNormal').textContent = liveSpeed < NORMAL_SPEED
+    ? `↓ ${NORMAL_SPEED - liveSpeed} vs normal`
+    : `↑ Normal`;
+  document.getElementById('trafficDelay').textContent = delay > 0 ? `+${delay} min` : 'On time';
+  document.getElementById('trafficDelay').style.color = delay > 3 ? 'var(--red)' : delay > 1 ? 'var(--yellow)' : 'var(--green)';
+  document.getElementById('roadSpeedLabel').textContent = liveSpeed + ' km/h avg';
+  document.getElementById('etaRoad').textContent = etaMins + ' min';
+
+  // Reinit cars if level changed
+  initCars(level);
+  animateCars(liveSpeed);
+
+  // ── Update mobile widget badge ──
+  const badge = document.getElementById('widgetConditionBadge');
+  if (badge) {
+    badge.textContent = level === 'heavy' ? '🔴 Heavy' : level === 'slow' ? '🟡 Slow' : '🟢 Clear';
+    badge.style.background = level === 'heavy' ? 'rgba(248,81,73,0.15)' : level === 'slow' ? 'rgba(210,153,34,0.15)' : 'rgba(63,185,80,0.15)';
+    badge.style.color = level === 'heavy' ? 'var(--red)' : level === 'slow' ? 'var(--yellow)' : 'var(--green)';
+  }
+}
+
+// ── Mobile widget collapse/expand ──
+let trafficWidgetOpen = true;
+function toggleTrafficWidget() {
+  const strip = document.getElementById('trafficStrip');
+  const arrow = document.getElementById('trafficToggleArrow');
+  trafficWidgetOpen = !trafficWidgetOpen;
+  strip.classList.toggle('collapsed', !trafficWidgetOpen);
+  arrow.textContent = trafficWidgetOpen ? '▲' : '▼';
+}
+
+// ── Init traffic system ──
+buildPredictChart();
+updateTrafficLive();
+cycleSignal();
+trafficLiveInterval = setInterval(updateTrafficLive, 8000); // refresh every 8s
+</script>
+</body>
+</html>

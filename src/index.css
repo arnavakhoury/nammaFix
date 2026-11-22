@@ -10,5 +10,17 @@
   body {
     @apply bg-stone-50 text-stone-900 antialiased;
     font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    margin: 0;
+  }
+  /* Reset Vite template root styles */
+  #root {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    text-align: left;
+    border: none;
+    min-height: 100vh;
+    display: block;
   }
 }
